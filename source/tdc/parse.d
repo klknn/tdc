@@ -12,6 +12,12 @@ enum NodeKind {
   sub,  // -
   mul,  // *
   div,  // /
+  eq,   // ==
+  neq,  // !=
+  lt,   // <
+  leq,  // <=
+  // gt,   // >
+  // geq,  // >=
   integer,  // 123
 }
 
@@ -82,9 +88,9 @@ Node* mulOrDiv() {
   assert(false, "unreachable");
 }
 
-/// Create a binary expr Node.
-/// expr := mulOrDiv (("+"|"-") mulOrDiv)*
-Node* expr() {
+/// Create an arithmetic Node.
+/// arith := mulOrDiv (("+"|"-") mulOrDiv)*
+Node* arith() {
   Node* node = mulOrDiv();
   for (;;) {
     if (consume("+")) {
@@ -100,10 +106,59 @@ Node* expr() {
   assert(false, "unreachable");
 }
 
+// relational := arith (("<"|"<="|">"|">=") arith)*
+Node* relational() {
+  Node* node = arith();
+  for (;;) {
+    if (consume("<")) {
+      node = newNode(NodeKind.lt, node, arith());
+    }
+    else if (consume("<=")) {
+      node = newNode(NodeKind.leq, node, arith());
+    }
+    else if (consume(">")) {
+      // swap lhs and rhs
+      node = newNode(NodeKind.lt, arith(), node);
+    }
+    else if (consume(">=")) {
+      // swap lhs and rhs
+      node = newNode(NodeKind.leq, arith(), node);
+    }
+    else {
+      return node;
+    }
+  }
+  assert(false, "unreachable");
+}
+
+/// Create an equality
+/// equality := relational (("=="|"!=") relational)*
+Node* equality() {
+  Node* node = relational();
+  for (;;) {
+    if (consume("==")) {
+      node = newNode(NodeKind.eq, node, relational());
+    }
+    else if (consume("!=")) {
+      node = newNode(NodeKind.neq, node, relational());
+    }
+    else {
+      return node;
+    }
+  }
+  assert(false, "unreachable");
+}
+
+/// Create an expression.
+/// expr := equality
+Node* expr() {
+  return equality();
+}
+
 unittest
 {
   import tdc.tokenize;
-  const(char)* s = "(123)";
+  const(char)* s = "123 <= 124";
 
   // const(char)* s = " 123 + 2*(4/5) ";
   tokenize(s);

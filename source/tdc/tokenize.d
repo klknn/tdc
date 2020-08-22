@@ -31,13 +31,9 @@ struct Token {
 private Token* currentToken;
 /// Pointer to currently parsing string.
 private const(char)* currentString;
-/// Pointer diff to currently parsing token from the start of currentString.
-private long currentLocation() {
-  return currentToken.str - currentString;
-}
-private void printCurrentErrorAt() {
+private void printErrorAt(const(char)* s) {
     fprintf(stderr, "%s\n", currentString);
-    for (long i = 0; i < currentLocation; ++i) {
+    for (long i = 0; i < s - currentString; ++i) {
       fprintf(stderr, " ");
     }
     fprintf(stderr, "^ HERE\n");
@@ -65,7 +61,7 @@ void expect(const(char)* s) {
     return;
   }
   fprintf(stderr, "ERROR: expected %s\n", s);
-  printCurrentErrorAt();
+  printErrorAt(currentToken.str);
   debug assert(false);
   else exit(1);
 }
@@ -75,7 +71,7 @@ void expect(const(char)* s) {
 long expectInteger() {
   if (currentToken.kind != TokenKind.integer) {
     fprintf(stderr, "ERROR: expected integer\n");
-    printCurrentErrorAt();
+    printErrorAt(currentToken.str);
     debug assert(false);
     else exit(1);
   }
@@ -111,8 +107,16 @@ void tokenize(const(char)* p) {
       ++p;
       continue;
     }
-    // reserved
+    // 2-char reserved
+    if (strncmp(p, "==", 2) == 0 || strncmp(p, "!=", 2) == 0 ||
+        strncmp(p, "<=", 2) == 0 || strncmp(p, ">=", 2) == 0) {
+      cur = newToken(TokenKind.reserved, cur, p, 2);
+      p += 2;
+      continue;
+    }
+    // 1-char reserved
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' ||
+        *p == '<' || *p == '>' ||
         *p == '(' || *p == ')') {
       cur = newToken(TokenKind.reserved, cur, p, 1);
       ++p;
@@ -125,6 +129,7 @@ void tokenize(const(char)* p) {
       continue;
     }
     fprintf(stderr, "ERROR: cannot tokenize\n");
+    printErrorAt(p);
     break;
   }
   newToken(TokenKind.eof, cur, p, 0);
@@ -152,4 +157,9 @@ unittest {
   assert(expectInteger() == 123);
   assert(consume(")"));
   assert(isEof());
+}
+
+unittest {
+  const(char)* s = "1 <= 2";
+  tokenize(s);
 }
