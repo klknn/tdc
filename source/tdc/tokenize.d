@@ -6,6 +6,7 @@ module tdc.tokenize;
 import core.stdc.ctype : isdigit, isspace;
 import core.stdc.stdlib : calloc, exit, strtol;
 import core.stdc.stdio : fprintf, stderr;
+import core.stdc.string : strncmp;
 
 /// Token kinds.
 enum TokenKind {
@@ -22,6 +23,7 @@ struct Token {
   /// Contents.
   long integer;
   const(char)* str;
+  long length;
 }
 
 
@@ -41,23 +43,31 @@ private void printCurrentErrorAt() {
     fprintf(stderr, "^ HERE\n");
 }
 
+/// Check s is match to the current token.
+bool match(const(char)* s) {
+  return currentToken.kind == TokenKind.reserved &&
+      strncmp(s, currentToken.str, currentToken.length) == 0;
+}
+
 /// Updates `currentToken` and returns true if op is valid else false.
-bool consume(char op) {
-  if (currentToken.kind != TokenKind.reserved || currentToken.str[0] != op) {
+bool consume(const(char)* s) {
+  if (!match(s)) {
     return false;
   }
   currentToken = currentToken.next;
   return true;
 }
 
-/// Check expected char is found.
-void expectChar(char c) {
-  if (currentToken.kind != TokenKind.reserved || currentToken.str[0] != c) {
-    fprintf(stderr, "ERROR: expected char\n");
-    printCurrentErrorAt();
-    exit(1);
+/// Check expected string is found.
+void expect(const(char)* s) {
+  if (match(s)) {
+    currentToken = currentToken.next;
+    return;
   }
-  currentToken = currentToken.next;
+  fprintf(stderr, "ERROR: expected %s\n", s);
+  printCurrentErrorAt();
+  debug assert(false);
+  else exit(1);
 }
 
 /// Updates `currentToken` and returns a parsed integer when it is integer.
@@ -66,7 +76,8 @@ long expectInteger() {
   if (currentToken.kind != TokenKind.integer) {
     fprintf(stderr, "ERROR: expected integer\n");
     printCurrentErrorAt();
-    exit(1);
+    debug assert(false);
+    else exit(1);
   }
   long integer = currentToken.integer;
   currentToken = currentToken.next;
@@ -79,10 +90,11 @@ bool isEof() {
 }
 
 /// Assigns new token to `currentToken.next`.
-Token* newToken(TokenKind kind, Token* cur, const(char)* s) {
+Token* newToken(TokenKind kind, Token* cur, const(char)* s, long length) {
   Token* tok = cast(Token*) calloc(1, Token.sizeof);
   tok.kind = kind;
   tok.str = s;
+  tok.length = length;
   cur.next = tok;
   return tok;
 }
@@ -102,20 +114,20 @@ void tokenize(const(char)* p) {
     // reserved
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' ||
         *p == '(' || *p == ')') {
-      cur = newToken(TokenKind.reserved, cur, p);
+      cur = newToken(TokenKind.reserved, cur, p, 1);
       ++p;
       continue;
     }
     // literals
     if (isdigit(*p)) {
-      cur = newToken(TokenKind.integer, cur, p);
+      cur = newToken(TokenKind.integer, cur, p, 0);
       cur.integer = strtol(p, &p, 10);
       continue;
     }
     fprintf(stderr, "ERROR: cannot tokenize\n");
     break;
   }
-  newToken(TokenKind.eof, cur, p);
+  newToken(TokenKind.eof, cur, p, 0);
   currentToken = head.next;
 }
 
@@ -130,4 +142,14 @@ unittest {
     currentToken = currentToken.next;
   }
   assert(n == 9);
+}
+
+unittest {
+  const(char)* s = "(123)";
+  tokenize(s);
+
+  assert(consume("("));
+  assert(expectInteger() == 123);
+  assert(consume(")"));
+  assert(isEof());
 }
