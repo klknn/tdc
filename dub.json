@@ -1,0 +1,23 @@
+{
+    "authors": [
+        "klknn"
+    ],
+    "copyright": "Copyright © 2020, klknn",
+    "description": "A minimal D compiler",
+    "license": "BSL-1.0",
+    "name": "tdc",
+    "buildTypes": {
+        "debug": {
+            "buildOptions": ["betterC", "debugMode", "debugInfo"]
+        }
+    },
+    "configurations": [
+        {
+            "name": "tdc",
+            "targetType": "executable",
+            "targetPath": "bin",
+            "mainSourceFile": "app.d",
+            "dflags-ldc": ["--static"],
+        }
+    ]
+}
