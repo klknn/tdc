@@ -21,14 +21,14 @@ struct Token {
   Token* next;
   /// Contents.
   long integer;
-  char* str;
+  const(char)* str;
 }
 
 
 /// Pointer to currently parsing token.
 private Token* currentToken;
 /// Pointer to currently parsing string.
-private char* currentString;
+private const(char)* currentString;
 /// Pointer diff to currently parsing token from the start of currentString.
 private long currentLocation() {
   return currentToken.str - currentString;
@@ -79,7 +79,7 @@ bool isEof() {
 }
 
 /// Assigns new token to `currentToken.next`.
-Token* newToken(TokenKind kind, Token* cur, char* s) {
+Token* newToken(TokenKind kind, Token* cur, const(char)* s) {
   Token* tok = cast(Token*) calloc(1, Token.sizeof);
   tok.kind = kind;
   tok.str = s;
@@ -88,7 +88,7 @@ Token* newToken(TokenKind kind, Token* cur, char* s) {
 }
 
 /// Tokenizes a string.
-void tokenize(char* p) {
+void tokenize(const(char)* p) {
   currentString = p;
   Token head;
   head.next = null;
@@ -117,4 +117,17 @@ void tokenize(char* p) {
   }
   newToken(TokenKind.eof, cur, p);
   currentToken = head.next;
+}
+
+unittest {
+  const(char)* s = " 123 + 2*(4/5) ";
+  tokenize(s);
+
+  assert(currentToken.integer  == 123);
+  long n = 0;
+  while (currentToken.kind != TokenKind.eof) {
+    ++n;
+    currentToken = currentToken.next;
+  }
+  assert(n == 9);
 }

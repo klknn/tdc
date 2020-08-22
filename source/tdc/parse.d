@@ -51,16 +51,29 @@ Node* primary() {
   return newNodeInteger(expectInteger());
 }
 
+/// Create a unary expression.
+/// unary := ("+" | "-")? unary | primary
+Node* unary() {
+  if (consume('+')) {
+    return unary();
+  }
+  else if (consume('-')) {
+    // TODO: optimize this in codegen.
+    return newNode(NodeKind.sub, newNodeInteger(0), unary());
+  }
+  return primary();
+}
+
 /// Create a mul or div expression.
-/// mulOrDiv := primary ((*|/) primary)*
+/// mulOrDiv := unary (("*"|"/") unary)*
 Node* mulOrDiv() {
-  Node* node = primary();
+  Node* node = unary();
   for (;;) {
     if (consume('*')) {
-      node = newNode(NodeKind.mul, node, primary());
+      node = newNode(NodeKind.mul, node, unary());
     }
     else if (consume('/')) {
-      node = newNode(NodeKind.div, node, primary());
+      node = newNode(NodeKind.div, node, unary());
     }
     else {
       return node;
@@ -70,7 +83,7 @@ Node* mulOrDiv() {
 }
 
 /// Create a binary expr Node.
-/// expr := mulOrDiv ((+|-) mulOrDiv)*
+/// expr := mulOrDiv (("+"|"-") mulOrDiv)*
 Node* expr() {
   Node* node = mulOrDiv();
   for (;;) {
@@ -85,4 +98,16 @@ Node* expr() {
     }
   }
   assert(false, "unreachable");
+}
+
+unittest
+{
+  import tdc.tokenize;
+  const(char)* s = " 123 + 2*(4/5) ";
+  tokenize(s);
+  Node* n = expr();
+  assert(n.kind == NodeKind.add);
+  assert(n.lhs.kind == NodeKind.integer);
+  assert(n.lhs.integer == 123);
+  assert(n.rhs.kind == NodeKind.mul);
 }
