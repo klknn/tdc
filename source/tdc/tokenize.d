@@ -4,7 +4,7 @@ module tdc.tokenize;
 @nogc nothrow:
 
 import tdc.stdc.ctype : isdigit, isspace;
-import tdc.stdc.stdlib : calloc, exit, strtol;
+import tdc.stdc.stdlib : calloc, strtol;
 import tdc.stdc.stdio : fprintf, stderr;
 import tdc.stdc.string : strncmp;
 
@@ -62,8 +62,7 @@ void expect(const(char)* s) {
   }
   fprintf(stderr, "ERROR: expected %s\n", s);
   printErrorAt(currentToken.str);
-  debug assert(false);
-  else exit(1);
+  assert(false);
 }
 
 /// Updates `currentToken` and returns a parsed integer when it is integer.
@@ -72,8 +71,7 @@ long expectInteger() {
   if (currentToken.kind != TokenKind.integer) {
     fprintf(stderr, "ERROR: expected integer\n");
     printErrorAt(currentToken.str);
-    debug assert(false);
-    else exit(1);
+    assert(false);
   }
   long integer = currentToken.integer;
   currentToken = currentToken.next;

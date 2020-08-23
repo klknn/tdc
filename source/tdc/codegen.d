@@ -2,7 +2,7 @@ module tdc.codegen;
 
 @nogc nothrow:
 
-import tdc.parse;
+import tdc.parse : Node, NodeKind;
 import tdc.stdc.stdio : printf;
 
 /// Generate x64 asm.
