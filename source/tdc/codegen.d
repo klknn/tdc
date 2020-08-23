@@ -11,58 +11,59 @@ void genX64(Node* node) {
     printf("  push %ld\n", node.integer);
     return;
   }
+
+  // gen binary ops
   genX64(node.lhs);
   genX64(node.rhs);
   printf("  pop rdi\n");
   printf("  pop rax\n");
-  switch (node.kind) {
-    // arithmetic ops
-    case NodeKind.add:
-      printf("  add rax, rdi\n");
-      break;
-    case NodeKind.sub:
-      printf("  sub rax, rdi\n");
-      break;
-    case NodeKind.mul:
-      printf("  imul rax, rdi\n");
-      break;
-    case NodeKind.div:
-      // extend rax to 128bit rdx:rax (upper:lower bits)
-      printf("  cqo\n");
-      // rax = rdx:rax / rdi, rdx = rdx:rax % rdi
-      printf("  idiv rdi\n");
-      break;
 
-    // logical ops
-    case NodeKind.eq:
-    case NodeKind.neq:
-    case NodeKind.lt:
-    case NodeKind.leq:
-      printf("  cmp rax, rdi\n");
-      switch (node.kind) {
-        case NodeKind.eq:
-          // al = rax == rdi ? 1 : 0
-          printf("  sete al\n");
-          break;
-        case NodeKind.neq:
-          // al = rax == rdi ? 0 : 1
-          printf("  setne al\n");
-          break;
-        case NodeKind.lt:
-          // al = rax < rdi ? 1 : 0
-          printf("  setl al\n");
-          break;
-        case NodeKind.leq:
-          // al = rax <= rdi ? 1 : 0
-          printf("  setle al\n");
-          break;
-        default:
-          assert(false, "unknown node kind");
-      }
-      // move a byte with zero extend because al is a 8-bit register
-      printf("  movzb rax, al\n");
-      break;
-    default:
+  NodeKind k = node.kind;
+  // arithmetic ops
+  if (k == NodeKind.add) {
+    printf("  add rax, rdi\n");
+  }
+  else if (k == NodeKind.sub) {
+    printf("  sub rax, rdi\n");
+  }
+  else if (k == NodeKind.mul) {
+    printf("  imul rax, rdi\n");
+  }
+  else if (k == NodeKind.div) {
+    // extend rax to 128bit rdx:rax (upper:lower bits)
+    printf("  cqo\n");
+    // rax = rdx:rax / rdi, rdx = rdx:rax % rdi
+    printf("  idiv rdi\n");
+  }
+  // logical ops
+  else if (k == NodeKind.eq ||
+           k == NodeKind.neq ||
+           k == NodeKind.lt ||
+           k == NodeKind.leq) {
+    printf("  cmp rax, rdi\n");
+    if (k == NodeKind.eq) {
+      // al = rax == rdi ? 1 : 0
+      printf("  sete al\n");
+    }
+    else if (k == NodeKind.neq) {
+      // al = rax == rdi ? 0 : 1
+      printf("  setne al\n");
+    }
+    else if (k == NodeKind.lt) {
+      // al = rax < rdi ? 1 : 0
+      printf("  setl al\n");
+    }
+    else if (k == NodeKind.leq) {
+      // al = rax <= rdi ? 1 : 0
+      printf("  setle al\n");
+    }
+    else {
+      assert(false, "unknown logical node kind");
+    }
+    // move a byte with zero extend because al is a 8-bit register
+    printf("  movzb rax, al\n");
+  }
+  else {
       assert(false, "unknown node kind");
   }
   printf("  push rax\n");

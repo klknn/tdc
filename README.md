@@ -10,6 +10,6 @@ limitations in implementaiton
 - no method (for a while)
 - no array?
 - no auto
-- only for, switch, if, and else
+- only for, if, and else
 - only long, char, simple enum, pointer of them, and struct of them
 - only import stdc.core.* libs
