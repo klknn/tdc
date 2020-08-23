@@ -1,11 +1,34 @@
 /// Parse module.
 module tdc.parse;
 
+import tdc.stdc.string : strncmp;
 import tdc.stdc.stdlib : calloc;
 import tdc.tokenize : consume, consumeIdentifier, expect, expectInteger, isEof,
   Token;
 
 @nogc nothrow:
+
+/// Local variable.
+struct LocalVar {
+  LocalVar* next;
+  const(char)* name;
+  long length;  // of name
+  long offset;  // from rbp
+}
+
+/// Current parsing local variable array.
+private LocalVar* currentLocals;
+private long currentLocalsLength;
+
+/// Find local variables by name.
+private LocalVar* findLocalVar(Token* token) {
+  for (LocalVar* l = currentLocals; l; l = l.next) {
+    if (l.length == token.length && strncmp(token.str, l.name, l.length) == 0) {
+      return l;
+    }
+  }
+  return null;
+}
 
 /// Node kind.
 enum NodeKind {
@@ -66,9 +89,23 @@ Node* primary() {
   }
   Token* t = consumeIdentifier();
   if (t) {
-    // TODO: lookup identifiers
-    return newNodeLocalVar(
-        (*t.str - 'a' + 1) * long.sizeof);
+    LocalVar* lv = findLocalVar(t);
+    if (lv) {
+      // TODO: return lv; ?
+      return newNodeLocalVar(lv.offset);
+    }
+    long offset = 0;
+    if (currentLocals) {
+      offset = currentLocals.offset + long.sizeof;
+    }
+    lv = cast(LocalVar*) calloc(1, LocalVar.sizeof);
+    lv.next = currentLocals;
+    lv.name = t.str;
+    lv.length = t.length;
+    lv.offset = offset;
+    currentLocals = lv;
+    currentLocalsLength += 1;
+    return newNodeLocalVar(offset);
   }
   return newNodeInteger(expectInteger());
 }
@@ -183,38 +220,48 @@ Node* expr() {
 /// statement := expr ";"?
 Node* statement() {
   Node* node = expr();
-  consume(";");
+  expect(";");
   return node;
 }
 
+/// Program with abstract syntax tree and so on.
+struct Program {
+  Node** nodes;
+  LocalVar* locals;
+  long localsLength;
+}
+
 /// program := statement*
-Node** program(long max) {
-  Node** code = cast(Node**) calloc(max, (Node*).sizeof);
+Program program(long max) {
+  Node** nodes = cast(Node**) calloc(max, (Node*).sizeof);
+  // reset global vars
+  currentLocals = null;
+  currentLocalsLength = 0;
   int i = 0;
   while (!isEof()) {
-    code[i] = statement();
+    nodes[i] = statement();
     ++i;
     assert(i < max);
   }
-  code[i] = null;
-  return code;
+  nodes[i] = null;
+
+  Program ret;
+  ret.nodes = nodes;
+  ret.locals = currentLocals;
+  ret.localsLength = currentLocalsLength;
+  return ret;
 }
 
 unittest
 {
   import tdc.tokenize;
+
   const(char)* s = "a = 123;";
-
-  // const(char)* s = " 123 + 2*(4/5) ";
   tokenize(s);
-  assert(currentToken.next.kind == TokenKind.reserved);
-  assert(currentToken.next.length == 1);
-  assert(currentToken.next.str[0] == '=');
-
-  Node** prog = program(2);
-  Node* stmt = prog[0];
+  Program prog = program(2);
+  Node* stmt = prog.nodes[0];
   assert(stmt.kind == NodeKind.assign);
   assert(stmt.lhs.kind == NodeKind.localVar);
   assert(stmt.rhs.kind == NodeKind.integer);
-  assert(prog[1] == null);
+  assert(prog.nodes[1] == null);
 }

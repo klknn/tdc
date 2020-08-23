@@ -8,6 +8,7 @@ import tdc.stdc.stdlib : calloc, strtol;
 import tdc.stdc.stdio : fprintf, stderr;
 import tdc.stdc.string : strncmp, strlen;
 
+
 /// Token kinds.
 enum TokenKind {
   reserved,
@@ -29,9 +30,9 @@ struct Token {
 
 
 /// Pointer to currently parsing token.
-Token* currentToken;
+private Token* currentToken;
 /// Pointer to currently parsing string.
-const(char)* currentString;
+private const(char)* currentString;
 void printErrorAt(const(char)* s) {
     fprintf(stderr, "%s\n", currentString);
     for (long i = 0; i < s - currentString; ++i) {
@@ -143,9 +144,13 @@ void tokenize(const(char)* p) {
       continue;
     }
     // identifier
-    if (isalpha(*p)) {
-      cur = newToken(TokenKind.identifier, cur, p, 1);
+    if (isalpha(*p) || *p == '_') {
+      const(char)* s = p;
       ++p;
+      while (isalpha(*p) || *p == '_' || isdigit(*p)) {
+        ++p;
+      }
+      cur = newToken(TokenKind.identifier, cur, s, p - s);
       continue;
     }
     // literals
@@ -188,4 +193,15 @@ unittest {
 unittest {
   const(char)* s = "1 <= 2";
   tokenize(s);
+}
+
+unittest {
+  const(char)* s = "foo + bar";
+  tokenize(s);
+  Token* t = consumeIdentifier();
+  assert(t.str[0 .. t.length] == "foo");
+  assert(consume("+"));
+  Token* bar = consumeIdentifier();
+  assert(bar.str[0..bar.length] == "bar");
+  assert(isEof());
 }
