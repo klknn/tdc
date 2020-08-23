@@ -1,7 +1,7 @@
 /// Parse module.
 module tdc.parse;
 
-import core.stdc.stdlib : calloc;
+import tdc.stdc.stdlib : calloc;
 import tdc.tokenize : consume, expect, expectInteger;
 
 @nogc nothrow:

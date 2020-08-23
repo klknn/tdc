@@ -2,8 +2,8 @@ module tdc.codegen;
 
 @nogc nothrow:
 
-import core.stdc.stdio : printf;
 import tdc.parse;
+import tdc.stdc.stdio : printf;
 
 /// Generate x64 asm.
 void genX64(Node* node) {

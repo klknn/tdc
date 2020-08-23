@@ -3,10 +3,10 @@ module tdc.tokenize;
 
 @nogc nothrow:
 
-import core.stdc.ctype : isdigit, isspace;
-import core.stdc.stdlib : calloc, exit, strtol;
-import core.stdc.stdio : fprintf, stderr;
-import core.stdc.string : strncmp;
+import tdc.stdc.ctype : isdigit, isspace;
+import tdc.stdc.stdlib : calloc, exit, strtol;
+import tdc.stdc.stdio : fprintf, stderr;
+import tdc.stdc.string : strncmp;
 
 /// Token kinds.
 enum TokenKind {

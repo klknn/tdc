@@ -1,10 +1,9 @@
 nothrow @nogc:
 
-import core.stdc.stdio : fprintf, printf, stderr;
-
 import tdc.tokenize : tokenize;
-import tdc.parse : expr, Node;
 import tdc.codegen : genX64;
+import tdc.parse : expr, Node;
+import tdc.stdc.stdio : fprintf, printf, stderr;
 
 extern (C)
 int main(int argc, char** argv) {
