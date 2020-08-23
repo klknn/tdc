@@ -3,14 +3,15 @@ module tdc.tokenize;
 
 @nogc nothrow:
 
-import tdc.stdc.ctype : isdigit, isspace;
+import tdc.stdc.ctype : isalpha, isdigit, isspace;
 import tdc.stdc.stdlib : calloc, strtol;
 import tdc.stdc.stdio : fprintf, stderr;
-import tdc.stdc.string : strncmp;
+import tdc.stdc.string : strncmp, strlen;
 
 /// Token kinds.
 enum TokenKind {
   reserved,
+  identifier,
   integer,
   eof
 }
@@ -28,10 +29,10 @@ struct Token {
 
 
 /// Pointer to currently parsing token.
-private Token* currentToken;
+Token* currentToken;
 /// Pointer to currently parsing string.
-private const(char)* currentString;
-private void printErrorAt(const(char)* s) {
+const(char)* currentString;
+void printErrorAt(const(char)* s) {
     fprintf(stderr, "%s\n", currentString);
     for (long i = 0; i < s - currentString; ++i) {
       fprintf(stderr, " ");
@@ -41,8 +42,18 @@ private void printErrorAt(const(char)* s) {
 
 /// Check s is match to the current token.
 bool match(const(char)* s) {
-  return currentToken.kind == TokenKind.reserved &&
-      strncmp(s, currentToken.str, currentToken.length) == 0;
+  if (currentToken.kind != TokenKind.reserved) return false;
+  if (strncmp(s, currentToken.str, currentToken.length) != 0) return false;
+  if (strlen(s) != currentToken.length) return false;
+  return true;
+}
+
+unittest {
+  const(char)* s = "a = 1";
+  Token t = Token(TokenKind.reserved, null, 0, s + 2, 1);
+  currentToken = &t;
+  assert(match("="));
+  assert(!match("=="));
 }
 
 /// Updates `currentToken` and returns true if op is valid else false.
@@ -63,6 +74,16 @@ void expect(const(char)* s) {
   fprintf(stderr, "ERROR: expected %s\n", s);
   printErrorAt(currentToken.str);
   assert(false);
+}
+
+/// Consume a token if it is an indentifier.
+Token* consumeIdentifier() {
+  if (currentToken.kind != TokenKind.identifier) {
+    return null;
+  }
+  Token* ret = currentToken;
+  currentToken = currentToken.next;
+  return ret;
 }
 
 /// Updates `currentToken` and returns a parsed integer when it is integer.
@@ -115,8 +136,15 @@ void tokenize(const(char)* p) {
     // 1-char reserved
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' ||
         *p == '<' || *p == '>' ||
-        *p == '(' || *p == ')') {
+        *p == '(' || *p == ')' ||
+        *p == ';' || *p == '=') {
       cur = newToken(TokenKind.reserved, cur, p, 1);
+      ++p;
+      continue;
+    }
+    // identifier
+    if (isalpha(*p)) {
+      cur = newToken(TokenKind.identifier, cur, p, 1);
       ++p;
       continue;
     }

@@ -2,23 +2,24 @@
 module tdc.parse;
 
 import tdc.stdc.stdlib : calloc;
-import tdc.tokenize : consume, expect, expectInteger;
+import tdc.tokenize : consume, consumeIdentifier, expect, expectInteger, isEof,
+  Token;
 
 @nogc nothrow:
 
 /// Node kind.
 enum NodeKind {
-  add,  // +
-  sub,  // -
-  mul,  // *
-  div,  // /
-  eq,   // ==
-  neq,  // !=
-  lt,   // <
-  leq,  // <=
-  // gt,   // >
-  // geq,  // >=
-  integer,  // 123
+  assign,  // =
+  add,     // +
+  sub,     // -
+  mul,     // *
+  div,     // /
+  eq,      // ==
+  neq,     // !=
+  lt,      // <
+  leq,     // <=
+  integer, // 123
+  localVar,  // local var
 }
 
 /// Node of abstract syntax tree (ast).
@@ -26,7 +27,8 @@ struct Node {
   NodeKind kind;
   Node* lhs;
   Node* rhs;
-  long integer;
+  long integer;  // for integer
+  long offset;  // for localVar
 }
 
 /// Create new Node of lhs and rhs nodes.
@@ -46,13 +48,27 @@ Node* newNodeInteger(long integer) {
   return ret;
 }
 
+/// Create a new Node of an localVar.
+Node* newNodeLocalVar(long offset) {
+  Node* ret = cast(Node*) calloc(1, Node.sizeof);
+  ret.kind = NodeKind.localVar;
+  ret.offset = offset;
+  return ret;
+}
+
 /// Create a primary expression.
-/// primary := "(" expr ")" | integer
+/// primary := "(" expr ")" | identifier | integer
 Node* primary() {
   if (consume("(")) {
     Node* node = expr();
     expect(")");
     return node;
+  }
+  Token* t = consumeIdentifier();
+  if (t) {
+    // TODO: lookup identifiers
+    return newNodeLocalVar(
+        (*t.str - 'a' + 1) * long.sizeof);
   }
   return newNodeInteger(expectInteger());
 }
@@ -149,22 +165,56 @@ Node* equality() {
   assert(false, "unreachable");
 }
 
+/// assign := equality ("=" assign)?
+Node* assign() {
+  Node* node = equality();
+  if (consume("=")) {
+    node = newNode(NodeKind.assign, node, assign());
+  }
+  return node;
+}
+
 /// Create an expression.
-/// expr := equality
+/// expr := assign
 Node* expr() {
-  return equality();
+  return assign();
+}
+
+/// statement := expr ";"?
+Node* statement() {
+  Node* node = expr();
+  consume(";");
+  return node;
+}
+
+/// program := statement*
+Node** program(long max) {
+  Node** code = cast(Node**) calloc(max, (Node*).sizeof);
+  int i = 0;
+  while (!isEof()) {
+    code[i] = statement();
+    ++i;
+    assert(i < max);
+  }
+  code[i] = null;
+  return code;
 }
 
 unittest
 {
   import tdc.tokenize;
-  const(char)* s = "123 <= 124";
+  const(char)* s = "a = 123;";
 
   // const(char)* s = " 123 + 2*(4/5) ";
   tokenize(s);
-  Node* n = expr();
-  // assert(n.kind == NodeKind.add);
-  // assert(n.lhs.kind == NodeKind.integer);
-  // assert(n.lhs.integer == 123);
-  // assert(n.rhs.kind == NodeKind.mul);
+  assert(currentToken.next.kind == TokenKind.reserved);
+  assert(currentToken.next.length == 1);
+  assert(currentToken.next.str[0] == '=');
+
+  Node** prog = program(2);
+  Node* stmt = prog[0];
+  assert(stmt.kind == NodeKind.assign);
+  assert(stmt.lhs.kind == NodeKind.localVar);
+  assert(stmt.rhs.kind == NodeKind.integer);
+  assert(prog[1] == null);
 }

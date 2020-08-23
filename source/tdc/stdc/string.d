@@ -4,3 +4,4 @@ module tdc.stdc.string;
 extern (C) @nogc nothrow:
 
 int strncmp(scope const char* s1, scope const char* s2, size_t n);
+size_t strlen(scope const char *s);
