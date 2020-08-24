@@ -16,6 +16,7 @@ import tdc.stdc.stdio : printf;
 
 long numIfBlock;
 long numForBlock;
+long numForCall;
 
 /// Push the given function local variable from rbp to stack top (rsp)
 void pushLocalVarAddress(Node* node) {
@@ -28,14 +29,56 @@ void pushLocalVarAddress(Node* node) {
   printf("  push rax\n");
 }
 
+/// Set arg to the given register and return the next arg.
+Node* setArg(Node* arg, const(char)* reg) {
+  if (arg == null) return arg;
+  genX64(arg);
+  printf("  pop %s\n", reg);
+  return arg.next;
+}
+
 /// Generate x64 asm in node and put a result in stack top
 void genX64(Node* node) {
   if (node == null) return;
 
   NodeKind k = node.kind;
+  if (k == NodeKind.call) {
+    ++numForCall;
+    // put args in registers
+    Node* arg = node.next;
+    arg = setArg(arg, "rdi");
+    arg = setArg(arg, "rsi");
+    arg = setArg(arg, "rdx");
+    arg = setArg(arg, "rcx");
+    arg = setArg(arg, "r8");
+    arg = setArg(arg, "r9");
+    assert(!arg, "not implemented: more than 6 args on call.");
+
+    // adjust rsp 16-byte aligned
+    printf("  mov rax, rsp\n");
+    printf("  and rax, 15\n");
+    printf("  jnz .L.call8offset.%d\n", numForCall);
+
+    // if 16 byte aligned
+    printf("  mov rax, 0\n");
+    printf("  call %s\n", node.name);
+    printf("  jmp .L.callend.%d\n", numForCall);
+
+    // if not 16 byte aligned (but always 8 byte aligned)
+    printf(".L.call8offset.%d:\n", numForCall);
+    printf("  sub rsp, 8\n");  // adjust
+    printf("  mov rax, 0\n");
+    printf("  call %s\n", node.name);
+    printf("  add rsp, 8\n");  // revert
+
+    printf(".L.callend.%d:\n", numForCall);
+    // function return value will be stored in rax
+    printf("  push rax\n");
+    return;
+  }
   if (k == NodeKind.compound) {
-    for (long i = 0; i < node.compoundLength; ++i) {
-      genX64(node.compound[i]);
+    for (Node* stmt = node.next; stmt; stmt = stmt.next) {
+      genX64(stmt);
       printf("  pop rax\n");
     }
     return;

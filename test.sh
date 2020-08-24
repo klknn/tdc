@@ -1,11 +1,13 @@
 #!/bin/bash
 # -*- sh-basic-offset: 2 -*-
+gcc -c test/ext.c
+
 assert() {
   expected="$1"
   input="$2"
 
   ./bin/tdc "$input" > tmp.s
-  cc -o tmp tmp.s
+  cc -o tmp tmp.s ext.o
   ./tmp
   actual="$?"
 
@@ -16,6 +18,11 @@ assert() {
     exit 1
   fi
 }
+
+assert 246 "a = 123; return ext_double(a);"
+assert 6 "return ext_sum(1, 1, 1, 1, 1, 1);"
+assert 123 "return ext_foo();"
+assert 124 "a = 1; return a + ext_foo();"
 
 assert 0 "return 0;"
 assert 42 "return 42;"

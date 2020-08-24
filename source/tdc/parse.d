@@ -1,8 +1,8 @@
 /// Parse module.
 module tdc.parse;
 
-import tdc.stdc.string : strncmp;
-import tdc.stdc.stdlib : calloc, realloc;
+import tdc.stdc.string : strncmp, strncpy;
+import tdc.stdc.stdlib : calloc;
 import tdc.tokenize : consume, consumeKind, consumeIdentifier,
   expect, expectInteger, isEof, Token, TokenKind;
 
@@ -43,7 +43,8 @@ enum NodeKind {
   leq,     // <=
   integer, // 123
   localVar,  // local var
-  compound,     // { ... }
+  compound,  // { ... }
+  call,      // identifier()
   // keywords
   return_,
   if_,
@@ -57,8 +58,14 @@ struct Node {
   NodeKind kind;
   Node* lhs;
   Node* rhs;
-  long integer;  // for integer
-  long offset;  // for localVar
+  long integer;      // for integer
+  long offset;       // for localVar
+
+  Node* next; // for array of nodes
+
+  // call
+  const(char)* name;
+
   // if-else block
   Node* condExpr;
   Node* ifStatement;
@@ -71,8 +78,7 @@ struct Node {
   Node* forBlock;
 
   // compound statement
-  Node** compound;
-  long compoundLength;
+  Node* compound;
 }
 
 /// Create new Node of lhs and rhs nodes.
@@ -101,15 +107,31 @@ Node* newNodeLocalVar(long offset) {
 }
 
 /// Create a primary expression.
-/// primary := "(" expr ")" | identifier | integer
+/// primary := "(" expr ")" | identifier ("(" (expr ",")* expr? ")")? | integer
 Node* primary() {
+  // "(" expr ")"
   if (consume("(")) {
     Node* node = expr();
     expect(")");
     return node;
   }
+  // identifier ("(" expr* ")")?
   Token* t = consumeIdentifier();
   if (t) {
+    if (consume("(")) {
+      Node* node = newNode(NodeKind.call, null, null);
+      Node* args = node;
+      // accum args
+      for (long i = 0; !consume(")"); ++i) {
+        if (i != 0) expect(",");
+        args.next = expr();
+        args = args.next;
+      }
+      char* s = cast(char*) calloc(t.length + 1, char.sizeof);
+      node.name = strncpy(s, t.str, t.length);
+      return node;
+    }
+
     LocalVar* lv = findLocalVar(t);
     if (lv) {
       // TODO: return lv; ?
@@ -128,6 +150,7 @@ Node* primary() {
     currentLocalsLength += 1;
     return newNodeLocalVar(offset);
   }
+  // integer
   return newNodeInteger(expectInteger());
 }
 
@@ -247,17 +270,10 @@ Node* statement() {
   // "{" statement* "}"
   if (consume("{")) {
     Node* node = newNode(NodeKind.compound, null, null);
-    long capacity = 0;
+    Node* cmpd = node;
     while (!consume("}")) {
-      // extend node.compound
-      if (node.compoundLength == capacity) {
-        capacity = 2 * capacity + 1;
-        node.compound = cast(Node**) realloc(
-            node.compound, (Node*).sizeof * capacity);
-        assert(node.compound, "realloc failed");
-      }
-      node.compound[node.compoundLength] = statement();
-      ++node.compoundLength;
+      cmpd.next = statement();
+      cmpd = cmpd.next;
     }
     return node;
   }
@@ -396,9 +412,32 @@ unittest
   Node* stmt = prog.nodes[0];
   assert(stmt.kind == NodeKind.for_);
   assert(stmt.forBlock.kind == NodeKind.compound);
-  assert(stmt.forBlock.compoundLength == 3);
-  assert(stmt.forBlock.compound[0].integer == 1);
-  assert(stmt.forBlock.compound[1].integer == 2);
-  assert(stmt.forBlock.compound[2].integer == 3);
-  assert(prog.nodes[1] == null);
+  assert(stmt.forBlock.next.integer == 1);
+  assert(stmt.forBlock.next.next.integer == 2);
+  assert(stmt.forBlock.next.next.next.integer == 3);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "foo();";
+  tokenize(s);
+  Program prog = program(10);
+  Node* stmt = prog.nodes[0];
+  assert(stmt.kind == NodeKind.call);
+  assert(stmt.name[0..3] == "foo");
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "foo(123);";
+  tokenize(s);
+  Program prog = program(10);
+  Node* stmt = prog.nodes[0];
+  assert(stmt.kind == NodeKind.call);
+  assert(stmt.name[0..3] == "foo");
+  assert(stmt.next.integer == 123);
 }

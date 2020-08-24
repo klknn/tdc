@@ -180,7 +180,7 @@ void tokenize(const(char)* p) {
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' ||
         *p == '<' || *p == '>' ||
         *p == '(' || *p == ')' || *p == '{' || *p == '}' ||
-        *p == ';' || *p == '=') {
+        *p == ',' || *p == ';' || *p == '=') {
       cur = newToken(TokenKind.reserved, cur, p, 1);
       ++p;
       continue;
