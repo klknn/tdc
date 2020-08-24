@@ -37,6 +37,7 @@ assert 0 "return 1 > 2;"
 assert 1 "return 1 <= 2;"
 assert 0 "return 1 >= 2;"
 
+# local vars
 assert 3 "
 foo = 1;
 bar = 2;
@@ -44,5 +45,9 @@ return foo + bar;
 "
 assert 4 "a = 1; a = a + 3; return a;"
 
+# if-else
+assert 1 "if (1 == 1) return 1; return 2;"
+assert 2 "if (1 == 0) return 1; return 2;"
+assert 2 "if (1 == 0) return 1; else return 2;"
 
 echo OK

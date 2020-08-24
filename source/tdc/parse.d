@@ -44,6 +44,8 @@ enum NodeKind {
   integer, // 123
   localVar,  // local var
   return_,   // return
+  if_,       // if
+  else_,     // else
 }
 
 /// Node of abstract syntax tree (ast).
@@ -53,6 +55,10 @@ struct Node {
   Node* rhs;
   long integer;  // for integer
   long offset;  // for localVar
+  // for if-else block
+  Node* condExpr;
+  Node* ifStatement;
+  Node* elseStatement;
 }
 
 /// Create new Node of lhs and rhs nodes.
@@ -218,15 +224,27 @@ Node* expr() {
   return assign();
 }
 
-/// statement = "return"? expr ";"
+/// statement = "if" "(" expr ")" statement ("else" statement)?
+//            | "return"? expr ";"
 Node* statement() {
-  Node* node;
+  if (consumeKind(TokenKind.if_)) {
+    Node* node = newNode(NodeKind.if_, null, null);
+    expect("(");
+    node.condExpr = expr();
+    expect(")");
+    node.ifStatement = statement();
+    if (consumeKind(TokenKind.else_)) {
+      node.elseStatement = statement();
+    }
+    return node;
+  }
+  // "return"? expr ";"
   if (consumeKind(TokenKind.return_)) {
-    node = newNode(NodeKind.return_, expr(), null);
+    Node* node = newNode(NodeKind.return_, expr(), null);
+    expect(";");
+    return node;
   }
-  else {
-    node = expr();
-  }
+  Node* node = expr();
   expect(";");
   return node;
 }
@@ -284,5 +302,23 @@ unittest
   assert(stmt.kind == NodeKind.return_);
   assert(stmt.rhs == null);
   assert(stmt.lhs.kind == NodeKind.integer);
+  assert(prog.nodes[1] == null);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "if (1) 2; else 3;";
+  tokenize(s);
+  Program prog = program(10);
+  Node* stmt = prog.nodes[0];
+  assert(stmt.kind == NodeKind.if_);
+  assert(stmt.condExpr.kind == NodeKind.integer);
+  assert(stmt.condExpr.integer == 1);
+  assert(stmt.ifStatement.kind == NodeKind.integer);
+  assert(stmt.ifStatement.integer == 2);
+  assert(stmt.elseStatement.kind == NodeKind.integer);
+  assert(stmt.elseStatement.integer == 3);
   assert(prog.nodes[1] == null);
 }

@@ -1,5 +1,5 @@
 DC := ldc2
-DFLAGS := -g -betterC -i="source/tdc/*.d" -Isource
+DFLAGS := -g -i="source/tdc/*.d" -Isource -betterC
 OBJ := app.o codegen.o tokenize.o parse.o
 .PHONY: clean test
 

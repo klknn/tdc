@@ -11,11 +11,14 @@ import tdc.stdc.string : strncmp, strlen;
 
 /// Token kinds.
 enum TokenKind {
+  eof,
   reserved,
   identifier,
   integer,
+  // keywords
   return_,
-  eof
+  if_,
+  else_,
 }
 
 /// Token aggregates.
@@ -144,6 +147,16 @@ void tokenize(const(char)* p) {
       p += 6;
       continue;
     }
+    if (strncmp(p, "if", 2) == 0 && !isIdentifierSuffix(p[2])) {
+      cur = newToken(TokenKind.if_, cur, p, 2);
+      p += 2;
+      continue;
+    }
+    if (strncmp(p, "else", 4) == 0 && !isIdentifierSuffix(p[4])) {
+      cur = newToken(TokenKind.else_, cur, p, 4);
+      p += 4;
+      continue;
+    }
     // 2-char reserved
     if (strncmp(p, "==", 2) == 0 || strncmp(p, "!=", 2) == 0 ||
         strncmp(p, "<=", 2) == 0 || strncmp(p, ">=", 2) == 0) {
@@ -154,7 +167,7 @@ void tokenize(const(char)* p) {
     // 1-char reserved
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' ||
         *p == '<' || *p == '>' ||
-        *p == '(' || *p == ')' ||
+        *p == '(' || *p == ')' || *p == '{' || *p == '}' ||
         *p == ';' || *p == '=') {
       cur = newToken(TokenKind.reserved, cur, p, 1);
       ++p;
@@ -208,8 +221,18 @@ unittest {
 }
 
 unittest {
-  const(char)* s = "1 <= 2";
+  const(char)* s = "if (1) {} else {} ";
   tokenize(s);
+  assert(consumeKind(TokenKind.if_));
+  assert(consume("("));
+  assert(expectInteger() == 1);
+  assert(consume(")"));
+  assert(consume("{"));
+  assert(consume("}"));
+  assert(consumeKind(TokenKind.else_));
+  assert(consume("{"));
+  assert(consume("}"));
+  assert(isEof());
 }
 
 unittest {

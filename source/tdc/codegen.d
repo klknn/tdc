@@ -14,6 +14,8 @@ module tdc.codegen;
 import tdc.parse : Node, NodeKind;
 import tdc.stdc.stdio : printf;
 
+long numIfBlock;
+
 /// Push the given function local variable from rbp to stack top (rsp)
 void pushLocalVarAddress(Node* node) {
   assert(node.kind == NodeKind.localVar);
@@ -29,6 +31,33 @@ void pushLocalVarAddress(Node* node) {
 void genX64(Node* node) {
   NodeKind k = node.kind;
 
+  if (node == null) return;
+  if (k == NodeKind.if_) {
+    // if (condExpr) ifStatement
+    genX64(node.condExpr);
+    // rax = condExpr
+    printf("  pop rax\n");
+    // new ifStatement block
+    // TODO: use func pos names instead of counter
+    long n = numIfBlock;
+    ++numIfBlock;
+    printf("  cmp rax, 0\n");
+    if (node.elseStatement) {
+      // jump to elseStatement if rax == 0
+      printf("  je  .Lelse%ld\n", n);
+      genX64(node.ifStatement);
+      printf("  je  .Lendif%ld\n", n);
+      printf(".Lelse%ld:\n", n);
+      genX64(node.elseStatement);
+    }
+    else {
+      // skip ifStatement if rax == 0
+      printf("  je  .Lendif%ld\n", n);
+      genX64(node.ifStatement);
+    }
+    printf(".Lendif%ld:\n", n);
+    return;
+  }
   if (k == NodeKind.return_) {
     genX64(node.lhs);
     // rax = lhs
