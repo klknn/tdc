@@ -14,6 +14,7 @@ enum TokenKind {
   reserved,
   identifier,
   integer,
+  return_,
   eof
 }
 
@@ -62,6 +63,12 @@ bool consume(const(char)* s) {
   if (!match(s)) {
     return false;
   }
+  currentToken = currentToken.next;
+  return true;
+}
+
+bool consumeKind(TokenKind k) {
+  if (currentToken.kind != k) return false;
   currentToken = currentToken.next;
   return true;
 }
@@ -115,6 +122,10 @@ Token* newToken(TokenKind kind, Token* cur, const(char)* s, long length) {
   return tok;
 }
 
+bool isIdentifierSuffix(char c) {
+  return isalpha(c) || c == '_' || isdigit(c);
+}
+
 /// Tokenizes a string.
 void tokenize(const(char)* p) {
   currentString = p;
@@ -125,6 +136,12 @@ void tokenize(const(char)* p) {
     // spaces
     if (isspace(*p)) {
       ++p;
+      continue;
+    }
+    // keywords
+    if (strncmp(p, "return", 6) == 0 && !isIdentifierSuffix(p[6])) {
+      cur = newToken(TokenKind.return_, cur, p, 6);
+      p += 6;
       continue;
     }
     // 2-char reserved
@@ -147,7 +164,7 @@ void tokenize(const(char)* p) {
     if (isalpha(*p) || *p == '_') {
       const(char)* s = p;
       ++p;
-      while (isalpha(*p) || *p == '_' || isdigit(*p)) {
+      while (isIdentifierSuffix(*p)) {
         ++p;
       }
       cur = newToken(TokenKind.identifier, cur, s, p - s);
@@ -196,9 +213,12 @@ unittest {
 }
 
 unittest {
-  const(char)* s = "foo + bar";
+  const(char)* s = "return foo + bar";
   tokenize(s);
+
+  assert(consumeKind(TokenKind.return_));
   Token* t = consumeIdentifier();
+  assert(t);
   assert(t.str[0 .. t.length] == "foo");
   assert(consume("+"));
   Token* bar = consumeIdentifier();

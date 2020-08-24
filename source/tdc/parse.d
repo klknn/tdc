@@ -3,8 +3,8 @@ module tdc.parse;
 
 import tdc.stdc.string : strncmp;
 import tdc.stdc.stdlib : calloc;
-import tdc.tokenize : consume, consumeIdentifier, expect, expectInteger, isEof,
-  Token;
+import tdc.tokenize : consume, consumeKind, consumeIdentifier,
+  expect, expectInteger, isEof, Token, TokenKind;
 
 @nogc nothrow:
 
@@ -43,6 +43,7 @@ enum NodeKind {
   leq,     // <=
   integer, // 123
   localVar,  // local var
+  return_,   // return
 }
 
 /// Node of abstract syntax tree (ast).
@@ -217,9 +218,15 @@ Node* expr() {
   return assign();
 }
 
-/// statement := expr ";"?
+/// statement = "return"? expr ";"
 Node* statement() {
-  Node* node = expr();
+  Node* node;
+  if (consumeKind(TokenKind.return_)) {
+    node = newNode(NodeKind.return_, expr(), null);
+  }
+  else {
+    node = expr();
+  }
   expect(";");
   return node;
 }
@@ -263,5 +270,19 @@ unittest
   assert(stmt.kind == NodeKind.assign);
   assert(stmt.lhs.kind == NodeKind.localVar);
   assert(stmt.rhs.kind == NodeKind.integer);
+  assert(prog.nodes[1] == null);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "return 123;";
+  tokenize(s);
+  Program prog = program(2);
+  Node* stmt = prog.nodes[0];
+  assert(stmt.kind == NodeKind.return_);
+  assert(stmt.rhs == null);
+  assert(stmt.lhs.kind == NodeKind.integer);
   assert(prog.nodes[1] == null);
 }

@@ -30,11 +30,5 @@ int main(int argc, char** argv) {
     // pop the last expresion result on top
     printf("  pop rax\n");
   }
-
-  // epilogue
-  // return the last expression result in rax
-  printf("  mov rsp, rbp\n");
-  printf("  pop rbp\n");
-  printf("  ret\n");
   return 0;
 }

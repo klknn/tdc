@@ -29,6 +29,16 @@ void pushLocalVarAddress(Node* node) {
 void genX64(Node* node) {
   NodeKind k = node.kind;
 
+  if (k == NodeKind.return_) {
+    genX64(node.lhs);
+    // rax = lhs
+    printf("  pop rax\n");
+    // go back to callee
+    printf("  mov rsp, rbp\n");
+    printf("  pop rbp\n");
+    printf("  ret\n");
+    return;
+  }
   if (k == NodeKind.integer) {
     printf("  push %ld\n", node.integer);
     return;
