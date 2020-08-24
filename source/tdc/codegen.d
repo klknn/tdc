@@ -33,6 +33,13 @@ void genX64(Node* node) {
   if (node == null) return;
 
   NodeKind k = node.kind;
+  if (k == NodeKind.compound) {
+    for (long i = 0; i < node.compoundLength; ++i) {
+      genX64(node.compound[i]);
+      printf("  pop rax\n");
+    }
+    return;
+  }
   if (k == NodeKind.for_) {
     long n = numForBlock;
     ++numForBlock;

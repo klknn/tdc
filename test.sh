@@ -60,10 +60,13 @@ return b;
 
 # while
 assert 10 "
+a = 0;
 b = 0;
-while (b < 10)
+while (b < 10) {
   b = b + 1;
-return b;
+  a = b;
+}
+return a;
 "
 
 echo OK

@@ -5,7 +5,7 @@ OBJ := app.o codegen.o tokenize.o parse.o
 
 bin/tdc: $(OBJ)
 	mkdir -p bin
-	gcc -static $(OBJ) -o $@ -lc
+	gcc -g -static $(OBJ) -o $@ -lc
 
 %.o: source/tdc/%.d
 	$(DC) $(DFLAGS) -c $<

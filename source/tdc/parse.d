@@ -2,7 +2,7 @@
 module tdc.parse;
 
 import tdc.stdc.string : strncmp;
-import tdc.stdc.stdlib : calloc;
+import tdc.stdc.stdlib : calloc, realloc;
 import tdc.tokenize : consume, consumeKind, consumeIdentifier,
   expect, expectInteger, isEof, Token, TokenKind;
 
@@ -43,6 +43,7 @@ enum NodeKind {
   leq,     // <=
   integer, // 123
   localVar,  // local var
+  compound,     // { ... }
   // keywords
   return_,
   if_,
@@ -58,16 +59,20 @@ struct Node {
   Node* rhs;
   long integer;  // for integer
   long offset;  // for localVar
-  // for if-else block
+  // if-else block
   Node* condExpr;
   Node* ifStatement;
   Node* elseStatement;
 
-  // for block
+  // for/while block
   Node* forInit;
   Node* forCond;
   Node* forUpdate;
   Node* forBlock;
+
+  // compound statement
+  Node** compound;
+  long compoundLength;
 }
 
 /// Create new Node of lhs and rhs nodes.
@@ -237,7 +242,25 @@ Node* expr() {
 ///           | "while" "(" expr ")" statement
 ///           | "for" "(" expr? ";" expr? ";" expr? ")" statement
 ///           | "return"? expr ";"
+///           | "{" statement* "}"
 Node* statement() {
+  // "{" statement* "}"
+  if (consume("{")) {
+    Node* node = newNode(NodeKind.compound, null, null);
+    long capacity = 0;
+    while (!consume("}")) {
+      // extend node.compound
+      if (node.compoundLength == capacity) {
+        capacity = 2 * capacity + 1;
+        node.compound = cast(Node**) realloc(
+            node.compound, (Node*).sizeof * capacity);
+        assert(node.compound, "realloc failed");
+      }
+      node.compound[node.compoundLength] = statement();
+      ++node.compoundLength;
+    }
+    return node;
+  }
   // "if" "(" expr ")" statement ("else" statement)?
   if (consumeKind(TokenKind.if_)) {
     Node* node = newNode(NodeKind.if_, null, null);
@@ -367,10 +390,15 @@ unittest
 {
   import tdc.tokenize;
 
-  const(char)* s = "for (A;A<10;A=A+1) 1;";
+  const(char)* s = "for (A;A<10;A=A+1) {1;2;3;}";
   tokenize(s);
   Program prog = program(10);
   Node* stmt = prog.nodes[0];
   assert(stmt.kind == NodeKind.for_);
+  assert(stmt.forBlock.kind == NodeKind.compound);
+  assert(stmt.forBlock.compoundLength == 3);
+  assert(stmt.forBlock.compound[0].integer == 1);
+  assert(stmt.forBlock.compound[1].integer == 2);
+  assert(stmt.forBlock.compound[2].integer == 3);
   assert(prog.nodes[1] == null);
 }
