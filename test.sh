@@ -50,4 +50,20 @@ assert 1 "if (1 == 1) return 1; return 2;"
 assert 2 "if (1 == 0) return 1; return 2;"
 assert 2 "if (1 == 0) return 1; else return 2;"
 
+# for
+assert 10 "
+b = 0;
+for (; a <= 10; a = a + 1)
+  b = a;
+return b;
+"
+
+# while
+assert 10 "
+b = 0;
+while (b < 10)
+  b = b + 1;
+return b;
+"
+
 echo OK

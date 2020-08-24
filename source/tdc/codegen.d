@@ -15,6 +15,7 @@ import tdc.parse : Node, NodeKind;
 import tdc.stdc.stdio : printf;
 
 long numIfBlock;
+long numForBlock;
 
 /// Push the given function local variable from rbp to stack top (rsp)
 void pushLocalVarAddress(Node* node) {
@@ -29,9 +30,28 @@ void pushLocalVarAddress(Node* node) {
 
 /// Generate x64 asm in node and put a result in stack top
 void genX64(Node* node) {
-  NodeKind k = node.kind;
-
   if (node == null) return;
+
+  NodeKind k = node.kind;
+  if (k == NodeKind.for_) {
+    long n = numForBlock;
+    ++numForBlock;
+
+    genX64(node.forInit);
+    printf(".Lbeginfor%ld:\n", n);
+    genX64(node.forCond);
+    // rax = forCond
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+    // jump to end if rax == 0
+    printf("  je .Lendfor%ld\n", n);
+    genX64(node.forBlock);
+    genX64(node.forUpdate);
+    // jump to begin
+    printf("  jmp .Lbeginfor%ld\n", n);
+    printf(".Lendfor%ld:\n", n);
+    return;
+  }
   if (k == NodeKind.if_) {
     // if (condExpr) ifStatement
     genX64(node.condExpr);

@@ -19,6 +19,8 @@ enum TokenKind {
   return_,
   if_,
   else_,
+  while_,
+  for_,
 }
 
 /// Token aggregates.
@@ -157,6 +159,16 @@ void tokenize(const(char)* p) {
       p += 4;
       continue;
     }
+    if (strncmp(p, "while", 5) == 0 && !isIdentifierSuffix(p[5])) {
+      cur = newToken(TokenKind.while_, cur, p, 5);
+      p += 5;
+      continue;
+    }
+    if (strncmp(p, "for", 3) == 0 && !isIdentifierSuffix(p[3])) {
+      cur = newToken(TokenKind.for_, cur, p, 3);
+      p += 3;
+      continue;
+    }
     // 2-char reserved
     if (strncmp(p, "==", 2) == 0 || strncmp(p, "!=", 2) == 0 ||
         strncmp(p, "<=", 2) == 0 || strncmp(p, ">=", 2) == 0) {
@@ -230,6 +242,31 @@ unittest {
   assert(consume("{"));
   assert(consume("}"));
   assert(consumeKind(TokenKind.else_));
+  assert(consume("{"));
+  assert(consume("}"));
+  assert(isEof());
+}
+
+unittest {
+  const(char)* s = "while (1) {} ";
+  tokenize(s);
+  assert(consumeKind(TokenKind.while_));
+  assert(consume("("));
+  assert(expectInteger() == 1);
+  assert(consume(")"));
+  assert(consume("{"));
+  assert(consume("}"));
+  assert(isEof());
+}
+
+unittest {
+  const(char)* s = "for (;;) {} ";
+  tokenize(s);
+  assert(consumeKind(TokenKind.for_));
+  assert(consume("("));
+  assert(consume(";"));
+  assert(consume(";"));
+  assert(consume(")"));
   assert(consume("{"));
   assert(consume("}"));
   assert(isEof());

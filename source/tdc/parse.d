@@ -43,9 +43,12 @@ enum NodeKind {
   leq,     // <=
   integer, // 123
   localVar,  // local var
-  return_,   // return
-  if_,       // if
-  else_,     // else
+  // keywords
+  return_,
+  if_,
+  else_,
+  while_,
+  for_,
 }
 
 /// Node of abstract syntax tree (ast).
@@ -59,6 +62,12 @@ struct Node {
   Node* condExpr;
   Node* ifStatement;
   Node* elseStatement;
+
+  // for block
+  Node* forInit;
+  Node* forCond;
+  Node* forUpdate;
+  Node* forBlock;
 }
 
 /// Create new Node of lhs and rhs nodes.
@@ -225,8 +234,11 @@ Node* expr() {
 }
 
 /// statement = "if" "(" expr ")" statement ("else" statement)?
-//            | "return"? expr ";"
+///           | "while" "(" expr ")" statement
+///           | "for" "(" expr? ";" expr? ";" expr? ")" statement
+///           | "return"? expr ";"
 Node* statement() {
+  // "if" "(" expr ")" statement ("else" statement)?
   if (consumeKind(TokenKind.if_)) {
     Node* node = newNode(NodeKind.if_, null, null);
     expect("(");
@@ -236,6 +248,34 @@ Node* statement() {
     if (consumeKind(TokenKind.else_)) {
       node.elseStatement = statement();
     }
+    return node;
+  }
+  // "for" "(" expr? ";" expr? ";" expr? ")" statement
+  if (consumeKind(TokenKind.for_)) {
+    Node* node = newNode(NodeKind.for_, null, null);
+    expect("(");
+    if (!consume(";")) {
+      node.forInit = expr();
+      expect(";");
+    }
+    if (!consume(";")) {
+      node.forCond = expr();
+      expect(";");
+    }
+    if (!consume(")")) {
+      node.forUpdate = expr();
+      expect(")");
+    }
+    node.forBlock = statement();
+    return node;
+  }
+  // "while" "(" expr ")" statement
+  if (consumeKind(TokenKind.while_)) {
+    Node* node = newNode(NodeKind.for_, null, null);
+    expect("(");
+    node.forCond = expr();
+    expect(")");
+    node.forBlock = statement();
     return node;
   }
   // "return"? expr ";"
@@ -320,5 +360,17 @@ unittest
   assert(stmt.ifStatement.integer == 2);
   assert(stmt.elseStatement.kind == NodeKind.integer);
   assert(stmt.elseStatement.integer == 3);
+  assert(prog.nodes[1] == null);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "for (A;A<10;A=A+1) 1;";
+  tokenize(s);
+  Program prog = program(10);
+  Node* stmt = prog.nodes[0];
+  assert(stmt.kind == NodeKind.for_);
   assert(prog.nodes[1] == null);
 }
