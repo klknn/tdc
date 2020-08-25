@@ -4,7 +4,7 @@ module tdc.parse;
 import tdc.stdc.string : strncmp, strncpy;
 import tdc.stdc.stdlib : calloc;
 import tdc.tokenize : consume, consumeKind, consumeIdentifier,
-  expect, expectInteger, isEof, Token, TokenKind;
+  expect, expectInteger, isEof, match, Token, TokenKind;
 
 @nogc nothrow:
 
@@ -45,6 +45,7 @@ enum NodeKind {
   localVar,  // local var
   compound,  // { ... }
   call,      // identifier()
+  func,      // func( ... ) { ... }
   // keywords
   return_,
   if_,
@@ -59,12 +60,14 @@ struct Node {
   Node* lhs;
   Node* rhs;
   long integer;      // for integer
-  long offset;       // for localVar
+  LocalVar* var;     // for localVar
 
   Node* next; // for array of nodes
 
-  // call
+  // func or call
   const(char)* name;
+  // func
+  Node* funcBody;
 
   // if-else block
   Node* condExpr;
@@ -81,33 +84,32 @@ struct Node {
   Node* compound;
 }
 
-/// Create new Node of lhs and rhs nodes.
-Node* newNode(NodeKind kind, Node* lhs, Node* rhs) {
+Node* newNode(NodeKind kind) {
   Node* ret = cast(Node*) calloc(1, Node.sizeof);
   ret.kind = kind;
+  return ret;
+}
+
+/// Create new Node of lhs and rhs nodes.
+Node* newNodeBinOp(NodeKind kind, Node* lhs, Node* rhs) {
+  Node* ret = newNode(kind);
   ret.lhs = lhs;
   ret.rhs = rhs;
   return ret;
 }
 
-/// Create a new Node of an integer.
-Node* newNodeInteger(long integer) {
-  Node* ret = cast(Node*) calloc(1, Node.sizeof);
-  ret.kind = NodeKind.integer;
-  ret.integer = integer;
-  return ret;
-}
-
-/// Create a new Node of an localVar.
-Node* newNodeLocalVar(long offset) {
-  Node* ret = cast(Node*) calloc(1, Node.sizeof);
-  ret.kind = NodeKind.localVar;
-  ret.offset = offset;
-  return ret;
+/// Copy a new string from token.
+const(char)* copyStr(Token* t) {
+  char* s = cast(char*) calloc(t.length + 1, char.sizeof);
+  return strncpy(s, t.str, t.length);
 }
 
 /// Create a primary expression.
-/// primary := "(" expr ")" | identifier ("(" (expr ",")* expr? ")")? | integer
+/// primary = "(" expr ")"
+///         | identifier
+///         | identifier "(" (expr ",")* expr? ")"
+///         | identifier "(" (expr ",")* expr? ")" statement
+///         | integer
 Node* primary() {
   // "(" expr ")"
   if (consume("(")) {
@@ -118,24 +120,32 @@ Node* primary() {
   // identifier ("(" expr* ")")?
   Token* t = consumeIdentifier();
   if (t) {
+    // call or func
     if (consume("(")) {
-      Node* node = newNode(NodeKind.call, null, null);
+      Node* node = newNode(NodeKind.call);
       Node* args = node;
-      // accum args
+      // parse args
       for (long i = 0; !consume(")"); ++i) {
         if (i != 0) expect(",");
         args.next = expr();
         args = args.next;
       }
-      char* s = cast(char*) calloc(t.length + 1, char.sizeof);
-      node.name = strncpy(s, t.str, t.length);
+      node.name = copyStr(t);
+      // call
+      if (!match("{")) return node;
+      // func
+      node.kind = NodeKind.func;
+      node.funcBody = statement();
       return node;
     }
 
+    // identifier
+    Node* node = newNode(NodeKind.localVar);
     LocalVar* lv = findLocalVar(t);
     if (lv) {
       // TODO: return lv; ?
-      return newNodeLocalVar(lv.offset);
+      node.var = lv;
+      return node;
     }
     long offset = 0;
     if (currentLocals) {
@@ -148,10 +158,13 @@ Node* primary() {
     lv.offset = offset;
     currentLocals = lv;
     currentLocalsLength += 1;
-    return newNodeLocalVar(offset);
+    node.var = lv;
+    return node;
   }
   // integer
-  return newNodeInteger(expectInteger());
+  Node* node = newNode(NodeKind.integer);
+  node.integer = expectInteger();
+  return node;
 }
 
 /// Create a unary expression.
@@ -162,7 +175,9 @@ Node* unary() {
   }
   else if (consume("-")) {
     // TODO: optimize this in codegen.
-    return newNode(NodeKind.sub, newNodeInteger(0), unary());
+    Node* zero = newNode(NodeKind.integer);
+    zero.integer = 0;
+    return newNodeBinOp(NodeKind.sub, zero, unary());
   }
   return primary();
 }
@@ -173,10 +188,10 @@ Node* mulOrDiv() {
   Node* node = unary();
   for (;;) {
     if (consume("*")) {
-      node = newNode(NodeKind.mul, node, unary());
+      node = newNodeBinOp(NodeKind.mul, node, unary());
     }
     else if (consume("/")) {
-      node = newNode(NodeKind.div, node, unary());
+      node = newNodeBinOp(NodeKind.div, node, unary());
     }
     else {
       return node;
@@ -191,10 +206,10 @@ Node* arith() {
   Node* node = mulOrDiv();
   for (;;) {
     if (consume("+")) {
-      node = newNode(NodeKind.add, node, mulOrDiv());
+      node = newNodeBinOp(NodeKind.add, node, mulOrDiv());
     }
     else if (consume("-")) {
-      node = newNode(NodeKind.sub, node, mulOrDiv());
+      node = newNodeBinOp(NodeKind.sub, node, mulOrDiv());
     }
     else {
       return node;
@@ -208,18 +223,18 @@ Node* relational() {
   Node* node = arith();
   for (;;) {
     if (consume("<")) {
-      node = newNode(NodeKind.lt, node, arith());
+      node = newNodeBinOp(NodeKind.lt, node, arith());
     }
     else if (consume("<=")) {
-      node = newNode(NodeKind.leq, node, arith());
+      node = newNodeBinOp(NodeKind.leq, node, arith());
     }
     else if (consume(">")) {
       // swap lhs and rhs
-      node = newNode(NodeKind.lt, arith(), node);
+      node = newNodeBinOp(NodeKind.lt, arith(), node);
     }
     else if (consume(">=")) {
       // swap lhs and rhs
-      node = newNode(NodeKind.leq, arith(), node);
+      node = newNodeBinOp(NodeKind.leq, arith(), node);
     }
     else {
       return node;
@@ -234,10 +249,10 @@ Node* equality() {
   Node* node = relational();
   for (;;) {
     if (consume("==")) {
-      node = newNode(NodeKind.eq, node, relational());
+      node = newNodeBinOp(NodeKind.eq, node, relational());
     }
     else if (consume("!=")) {
-      node = newNode(NodeKind.neq, node, relational());
+      node = newNodeBinOp(NodeKind.neq, node, relational());
     }
     else {
       return node;
@@ -250,7 +265,7 @@ Node* equality() {
 Node* assign() {
   Node* node = equality();
   if (consume("=")) {
-    node = newNode(NodeKind.assign, node, assign());
+    node = newNodeBinOp(NodeKind.assign, node, assign());
   }
   return node;
 }
@@ -266,10 +281,11 @@ Node* expr() {
 ///           | "for" "(" expr? ";" expr? ";" expr? ")" statement
 ///           | "return"? expr ";"
 ///           | "{" statement* "}"
+///           | identifier "(" identifier* ")" statement
 Node* statement() {
   // "{" statement* "}"
   if (consume("{")) {
-    Node* node = newNode(NodeKind.compound, null, null);
+    Node* node = newNode(NodeKind.compound);
     Node* cmpd = node;
     while (!consume("}")) {
       cmpd.next = statement();
@@ -279,7 +295,7 @@ Node* statement() {
   }
   // "if" "(" expr ")" statement ("else" statement)?
   if (consumeKind(TokenKind.if_)) {
-    Node* node = newNode(NodeKind.if_, null, null);
+    Node* node = newNode(NodeKind.if_);
     expect("(");
     node.condExpr = expr();
     expect(")");
@@ -291,7 +307,7 @@ Node* statement() {
   }
   // "for" "(" expr? ";" expr? ";" expr? ")" statement
   if (consumeKind(TokenKind.for_)) {
-    Node* node = newNode(NodeKind.for_, null, null);
+    Node* node = newNode(NodeKind.for_);
     expect("(");
     if (!consume(";")) {
       node.forInit = expr();
@@ -310,7 +326,7 @@ Node* statement() {
   }
   // "while" "(" expr ")" statement
   if (consumeKind(TokenKind.while_)) {
-    Node* node = newNode(NodeKind.for_, null, null);
+    Node* node = newNode(NodeKind.for_);
     expect("(");
     node.forCond = expr();
     expect(")");
@@ -319,38 +335,36 @@ Node* statement() {
   }
   // "return"? expr ";"
   if (consumeKind(TokenKind.return_)) {
-    Node* node = newNode(NodeKind.return_, expr(), null);
+    Node* node = newNodeBinOp(NodeKind.return_, expr(), null);
     expect(";");
     return node;
   }
   Node* node = expr();
-  expect(";");
+  if (node.kind != NodeKind.func) expect(";");
   return node;
 }
 
 /// Program with abstract syntax tree and so on.
 struct Program {
-  Node** nodes;
+  Node* node;
   LocalVar* locals;
   long localsLength;
 }
 
 /// program := statement*
-Program program(long max) {
-  Node** nodes = cast(Node**) calloc(max, (Node*).sizeof);
+Program program() {
+  Program ret;
   // reset global vars
   currentLocals = null;
   currentLocalsLength = 0;
   int i = 0;
+  Node* prev;
   while (!isEof()) {
-    nodes[i] = statement();
-    ++i;
-    assert(i < max);
+    Node* node = statement();
+    if (ret.node == null) ret.node = node;
+    else prev.next = node;
+    prev = node;
   }
-  nodes[i] = null;
-
-  Program ret;
-  ret.nodes = nodes;
   ret.locals = currentLocals;
   ret.localsLength = currentLocalsLength;
   return ret;
@@ -362,12 +376,11 @@ unittest
 
   const(char)* s = "a = 123;";
   tokenize(s);
-  Program prog = program(2);
-  Node* stmt = prog.nodes[0];
+  Program prog = program();
+  Node* stmt = prog.node;
   assert(stmt.kind == NodeKind.assign);
   assert(stmt.lhs.kind == NodeKind.localVar);
   assert(stmt.rhs.kind == NodeKind.integer);
-  assert(prog.nodes[1] == null);
 }
 
 unittest
@@ -376,12 +389,11 @@ unittest
 
   const(char)* s = "return 123;";
   tokenize(s);
-  Program prog = program(2);
-  Node* stmt = prog.nodes[0];
+  Program prog = program();
+  Node* stmt = prog.node;
   assert(stmt.kind == NodeKind.return_);
   assert(stmt.rhs == null);
   assert(stmt.lhs.kind == NodeKind.integer);
-  assert(prog.nodes[1] == null);
 }
 
 unittest
@@ -390,8 +402,8 @@ unittest
 
   const(char)* s = "if (1) 2; else 3;";
   tokenize(s);
-  Program prog = program(10);
-  Node* stmt = prog.nodes[0];
+  Program prog = program();
+  Node* stmt = prog.node;
   assert(stmt.kind == NodeKind.if_);
   assert(stmt.condExpr.kind == NodeKind.integer);
   assert(stmt.condExpr.integer == 1);
@@ -399,7 +411,6 @@ unittest
   assert(stmt.ifStatement.integer == 2);
   assert(stmt.elseStatement.kind == NodeKind.integer);
   assert(stmt.elseStatement.integer == 3);
-  assert(prog.nodes[1] == null);
 }
 
 unittest
@@ -408,8 +419,8 @@ unittest
 
   const(char)* s = "for (A;A<10;A=A+1) {1;2;3;}";
   tokenize(s);
-  Program prog = program(10);
-  Node* stmt = prog.nodes[0];
+  Program prog = program();
+  Node* stmt = prog.node;
   assert(stmt.kind == NodeKind.for_);
   assert(stmt.forBlock.kind == NodeKind.compound);
   assert(stmt.forBlock.next.integer == 1);
@@ -423,8 +434,8 @@ unittest
 
   const(char)* s = "foo();";
   tokenize(s);
-  Program prog = program(10);
-  Node* stmt = prog.nodes[0];
+  Program prog = program();
+  Node* stmt = prog.node;
   assert(stmt.kind == NodeKind.call);
   assert(stmt.name[0..3] == "foo");
 }
@@ -435,9 +446,22 @@ unittest
 
   const(char)* s = "foo(123);";
   tokenize(s);
-  Program prog = program(10);
-  Node* stmt = prog.nodes[0];
+  Program prog = program();
+  Node* stmt = prog.node;
   assert(stmt.kind == NodeKind.call);
   assert(stmt.name[0..3] == "foo");
   assert(stmt.next.integer == 123);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "foo(a) { return a * 2; }";
+  tokenize(s);
+  Program prog = program();
+  Node* stmt = prog.node;
+  assert(stmt.kind == NodeKind.func);
+  assert(stmt.name[0..3] == "foo");
+  // assert(stmt.next.name[0..1] == "a");
 }

@@ -1,4 +1,4 @@
-DC := ldc2
+DC := dmd # ldc2
 DFLAGS := -g -i="source/tdc/*.d" -Isource -betterC
 OBJ := app.o codegen.o tokenize.o parse.o
 .PHONY: clean test

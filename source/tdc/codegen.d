@@ -24,7 +24,7 @@ void pushLocalVarAddress(Node* node) {
   // copy a base pointer (rbp, top of function frame) to rax
   printf("  mov rax, rbp\n");
   // move rax to offset from top
-  printf("  sub rax, %d\n", node.offset);
+  printf("  sub rax, %d\n", node.var.offset);
   // push rax to stack top
   printf("  push rax\n");
 }
@@ -37,6 +37,20 @@ Node* setArg(Node* arg, const(char)* reg) {
   return arg.next;
 }
 
+/// Set args before calling a function.
+void setArgs(Node* arg) {
+  arg = setArg(arg, "rdi");
+  arg = setArg(arg, "rsi");
+  arg = setArg(arg, "rdx");
+  arg = setArg(arg, "rcx");
+  arg = setArg(arg, "r8");
+  arg = setArg(arg, "r9");
+  while (arg) {
+    genX64(arg);
+    arg = arg.next;
+  }
+}
+
 /// Generate x64 asm in node and put a result in stack top
 void genX64(Node* node) {
   if (node == null) return;
@@ -44,15 +58,6 @@ void genX64(Node* node) {
   NodeKind k = node.kind;
   if (k == NodeKind.call) {
     ++numForCall;
-    // put args in registers
-    Node* arg = node.next;
-    arg = setArg(arg, "rdi");
-    arg = setArg(arg, "rsi");
-    arg = setArg(arg, "rdx");
-    arg = setArg(arg, "rcx");
-    arg = setArg(arg, "r8");
-    arg = setArg(arg, "r9");
-    assert(!arg, "not implemented: more than 6 args on call.");
 
     // adjust rsp 16-byte aligned
     printf("  mov rax, rsp\n");
@@ -61,6 +66,7 @@ void genX64(Node* node) {
 
     // if 16 byte aligned
     printf("  mov rax, 0\n");
+    setArgs(node.next);
     printf("  call %s\n", node.name);
     printf("  jmp .L.callend.%d\n", numForCall);
 
@@ -68,6 +74,7 @@ void genX64(Node* node) {
     printf(".L.call8offset.%d:\n", numForCall);
     printf("  sub rsp, 8\n");  // adjust
     printf("  mov rax, 0\n");
+    setArgs(node.next);
     printf("  call %s\n", node.name);
     printf("  add rsp, 8\n");  // revert
 
@@ -108,7 +115,6 @@ void genX64(Node* node) {
     // rax = condExpr
     printf("  pop rax\n");
     // new ifStatement block
-    // TODO: use func pos names instead of counter
     long n = numIfBlock;
     ++numIfBlock;
     printf("  cmp rax, 0\n");

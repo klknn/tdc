@@ -21,6 +21,7 @@ assert() {
 
 assert 246 "a = 123; return ext_double(a);"
 assert 6 "return ext_sum(1, 1, 1, 1, 1, 1);"
+assert 8 "return ext_sum7(1, 1, 1, 1, 1, 1, 2);"
 assert 123 "return ext_foo();"
 assert 124 "a = 1; return a + ext_foo();"
 

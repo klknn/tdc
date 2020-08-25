@@ -131,6 +131,12 @@ bool isIdentifierSuffix(char c) {
   return isalpha(c) || c == '_' || isdigit(c);
 }
 
+/// Return true if p starts with keyword ~ " ".
+bool isKeyword(const(char)* p, const(char)* keyword) {
+  long n = strlen(keyword);
+  return strncmp(p, keyword, n) == 0 && !isIdentifierSuffix(p[n]);
+}
+
 /// Tokenizes a string.
 void tokenize(const(char)* p) {
   currentString = p;
@@ -144,27 +150,27 @@ void tokenize(const(char)* p) {
       continue;
     }
     // keywords
-    if (strncmp(p, "return", 6) == 0 && !isIdentifierSuffix(p[6])) {
+    if (isKeyword(p, "return")) {
       cur = newToken(TokenKind.return_, cur, p, 6);
       p += 6;
       continue;
     }
-    if (strncmp(p, "if", 2) == 0 && !isIdentifierSuffix(p[2])) {
+    if (isKeyword(p, "if")) {
       cur = newToken(TokenKind.if_, cur, p, 2);
       p += 2;
       continue;
     }
-    if (strncmp(p, "else", 4) == 0 && !isIdentifierSuffix(p[4])) {
+    if (isKeyword(p, "else")) {
       cur = newToken(TokenKind.else_, cur, p, 4);
       p += 4;
       continue;
     }
-    if (strncmp(p, "while", 5) == 0 && !isIdentifierSuffix(p[5])) {
+    if (isKeyword(p, "while")) {
       cur = newToken(TokenKind.while_, cur, p, 5);
       p += 5;
       continue;
     }
-    if (strncmp(p, "for", 3) == 0 && !isIdentifierSuffix(p[3])) {
+    if (isKeyword(p, "for")) {
       cur = newToken(TokenKind.for_, cur, p, 3);
       p += 3;
       continue;
