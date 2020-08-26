@@ -61,6 +61,7 @@ struct Node {
   Node* rhs;
   long integer;      // for integer
   LocalVar* var;     // for localVar
+  long varLength;
 
   Node* next; // for array of nodes
 
@@ -68,6 +69,8 @@ struct Node {
   const(char)* name;
   // func
   Node* funcBody;
+  LocalVar* locals;
+  long localsLength;
 
   // if-else block
   Node* condExpr;
@@ -104,7 +107,6 @@ const(char)* copyStr(Token* t) {
   return strncpy(s, t.str, t.length);
 }
 
-/// Create a primary expression.
 /// primary = "(" expr ")"
 ///         | identifier
 ///         | identifier "(" (expr ",")* expr? ")"
@@ -167,7 +169,6 @@ Node* primary() {
   return node;
 }
 
-/// Create a unary expression.
 /// unary := ("+" | "-")? unary | primary
 Node* unary() {
   if (consume("+")) {
@@ -182,7 +183,6 @@ Node* unary() {
   return primary();
 }
 
-/// Create a mul or div expression.
 /// mulOrDiv := unary (("*"|"/") unary)*
 Node* mulOrDiv() {
   Node* node = unary();
@@ -200,7 +200,6 @@ Node* mulOrDiv() {
   assert(false, "unreachable");
 }
 
-/// Create an arithmetic Node.
 /// arith := mulOrDiv (("+"|"-") mulOrDiv)*
 Node* arith() {
   Node* node = mulOrDiv();
@@ -218,7 +217,7 @@ Node* arith() {
   assert(false, "unreachable");
 }
 
-// relational := arith (("<"|"<="|">"|">=") arith)*
+/// relational := arith (("<"|"<="|">"|">=") arith)*
 Node* relational() {
   Node* node = arith();
   for (;;) {
@@ -243,7 +242,6 @@ Node* relational() {
   assert(false, "unreachable");
 }
 
-/// Create an equality
 /// equality := relational (("=="|"!=") relational)*
 Node* equality() {
   Node* node = relational();
@@ -270,7 +268,6 @@ Node* assign() {
   return node;
 }
 
-/// Create an expression.
 /// expr := assign
 Node* expr() {
   return assign();
@@ -344,30 +341,16 @@ Node* statement() {
   return node;
 }
 
-/// Program with abstract syntax tree and so on.
-struct Program {
-  Node* node;
-  LocalVar* locals;
-  long localsLength;
-}
-
 /// program := statement*
-Program program() {
-  Program ret;
+Node* func() {
   // reset global vars
   currentLocals = null;
   currentLocalsLength = 0;
-  int i = 0;
-  Node* prev;
-  while (!isEof()) {
-    Node* node = statement();
-    if (ret.node == null) ret.node = node;
-    else prev.next = node;
-    prev = node;
-  }
-  ret.locals = currentLocals;
-  ret.localsLength = currentLocalsLength;
-  return ret;
+  Node* node = statement();
+  // assert(node.kind == NodeKind.func, "only function can be top-level");
+  node.locals = currentLocals;
+  node.localsLength = currentLocalsLength;
+  return node;
 }
 
 unittest
@@ -376,8 +359,8 @@ unittest
 
   const(char)* s = "a = 123;";
   tokenize(s);
-  Program prog = program();
-  Node* stmt = prog.node;
+
+  Node* stmt = func();
   assert(stmt.kind == NodeKind.assign);
   assert(stmt.lhs.kind == NodeKind.localVar);
   assert(stmt.rhs.kind == NodeKind.integer);
@@ -389,8 +372,8 @@ unittest
 
   const(char)* s = "return 123;";
   tokenize(s);
-  Program prog = program();
-  Node* stmt = prog.node;
+
+  Node* stmt = func();
   assert(stmt.kind == NodeKind.return_);
   assert(stmt.rhs == null);
   assert(stmt.lhs.kind == NodeKind.integer);
@@ -402,8 +385,8 @@ unittest
 
   const(char)* s = "if (1) 2; else 3;";
   tokenize(s);
-  Program prog = program();
-  Node* stmt = prog.node;
+
+  Node* stmt = func();
   assert(stmt.kind == NodeKind.if_);
   assert(stmt.condExpr.kind == NodeKind.integer);
   assert(stmt.condExpr.integer == 1);
@@ -419,8 +402,8 @@ unittest
 
   const(char)* s = "for (A;A<10;A=A+1) {1;2;3;}";
   tokenize(s);
-  Program prog = program();
-  Node* stmt = prog.node;
+
+  Node* stmt = func();
   assert(stmt.kind == NodeKind.for_);
   assert(stmt.forBlock.kind == NodeKind.compound);
   assert(stmt.forBlock.next.integer == 1);
@@ -434,8 +417,8 @@ unittest
 
   const(char)* s = "foo();";
   tokenize(s);
-  Program prog = program();
-  Node* stmt = prog.node;
+
+  Node* stmt = func();
   assert(stmt.kind == NodeKind.call);
   assert(stmt.name[0..3] == "foo");
 }
@@ -446,8 +429,8 @@ unittest
 
   const(char)* s = "foo(123);";
   tokenize(s);
-  Program prog = program();
-  Node* stmt = prog.node;
+
+  Node* stmt = func();
   assert(stmt.kind == NodeKind.call);
   assert(stmt.name[0..3] == "foo");
   assert(stmt.next.integer == 123);
@@ -457,11 +440,12 @@ unittest
 {
   import tdc.tokenize;
 
-  const(char)* s = "foo(a) { return a * 2; }";
+  const(char)* s = "foo(a, b) { return a * b; }";
   tokenize(s);
-  Program prog = program();
-  Node* stmt = prog.node;
+
+  Node* stmt = func();
   assert(stmt.kind == NodeKind.func);
   assert(stmt.name[0..3] == "foo");
-  // assert(stmt.next.name[0..1] == "a");
+  assert(stmt.next.var.name[0..1] == "a");
+  assert(stmt.next.next.var.name[0..1] == "b");
 }

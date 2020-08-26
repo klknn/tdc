@@ -56,6 +56,22 @@ void genX64(Node* node) {
   if (node == null) return;
 
   NodeKind k = node.kind;
+  if (k == NodeKind.func) {
+    printf(".global %s\n", node.name);
+    printf("%s:\n", node.name);
+
+    printf("  push rbp\n");
+    printf("  mov rbp, rsp\n");
+    // FIXME: copy args from registers to a stack
+    // alloc local variables
+    printf("  sub rsp, %d\n", node.localsLength * long.sizeof);
+    for (Node* bd = node.funcBody;  bd; bd = bd.next) {
+      genX64(bd);
+      // pop the last expresion result on top
+      printf("  pop rax\n");
+    }
+    return;
+  }
   if (k == NodeKind.call) {
     ++numForCall;
 
