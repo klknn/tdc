@@ -360,7 +360,7 @@ unittest
   const(char)* s = "a = 123;";
   tokenize(s);
 
-  Node* stmt = func();
+  Node* stmt = assign();
   assert(stmt.kind == NodeKind.assign);
   assert(stmt.lhs.kind == NodeKind.localVar);
   assert(stmt.rhs.kind == NodeKind.integer);
@@ -373,7 +373,7 @@ unittest
   const(char)* s = "return 123;";
   tokenize(s);
 
-  Node* stmt = func();
+  Node* stmt = statement();
   assert(stmt.kind == NodeKind.return_);
   assert(stmt.rhs == null);
   assert(stmt.lhs.kind == NodeKind.integer);
@@ -386,7 +386,7 @@ unittest
   const(char)* s = "if (1) 2; else 3;";
   tokenize(s);
 
-  Node* stmt = func();
+  Node* stmt = statement();
   assert(stmt.kind == NodeKind.if_);
   assert(stmt.condExpr.kind == NodeKind.integer);
   assert(stmt.condExpr.integer == 1);
@@ -403,7 +403,7 @@ unittest
   const(char)* s = "for (A;A<10;A=A+1) {1;2;3;}";
   tokenize(s);
 
-  Node* stmt = func();
+  Node* stmt = statement();
   assert(stmt.kind == NodeKind.for_);
   assert(stmt.forBlock.kind == NodeKind.compound);
   assert(stmt.forBlock.next.integer == 1);
@@ -418,7 +418,7 @@ unittest
   const(char)* s = "foo();";
   tokenize(s);
 
-  Node* stmt = func();
+  Node* stmt = expr();
   assert(stmt.kind == NodeKind.call);
   assert(stmt.name[0..3] == "foo");
 }
@@ -430,7 +430,7 @@ unittest
   const(char)* s = "foo(123);";
   tokenize(s);
 
-  Node* stmt = func();
+  Node* stmt = expr();
   assert(stmt.kind == NodeKind.call);
   assert(stmt.name[0..3] == "foo");
   assert(stmt.next.integer == 123);

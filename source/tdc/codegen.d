@@ -65,10 +65,9 @@ void genX64(Node* node) {
     // FIXME: copy args from registers to a stack
     // alloc local variables
     printf("  sub rsp, %d\n", node.localsLength * long.sizeof);
-    for (Node* bd = node.funcBody;  bd; bd = bd.next) {
+    for (Node* bd = node.funcBody.next;  bd; bd = bd.next) {
+      printf("  // gen body\n");
       genX64(bd);
-      // pop the last expresion result on top
-      printf("  pop rax\n");
     }
     return;
   }
