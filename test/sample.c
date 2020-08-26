@@ -1,8 +1,9 @@
-int foo(int a) {
-  return a + 1;
+#include <stdint.h>
+
+int64_t foo(int64_t a) {
+  return a;
 }
 
 int main() {
-  int a = 1;
-  return foo(a);
+  return foo(1);
 }

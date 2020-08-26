@@ -18,15 +18,13 @@ long numIfBlock;
 long numForBlock;
 long numForCall;
 
-/// Push the given function local variable from rbp to stack top (rsp)
-void pushLocalVarAddress(Node* node) {
+/// Put the local variable address (offset from top) in rax
+void raxLocalVarAddress(Node* node) {
   assert(node.kind == NodeKind.localVar);
   // copy a base pointer (rbp, top of function frame) to rax
   printf("  mov rax, rbp\n");
   // move rax to offset from top
   printf("  sub rax, %d\n", node.var.offset);
-  // push rax to stack top
-  printf("  push rax\n");
 }
 
 /// Set arg to the given register and return the next arg.
@@ -62,16 +60,18 @@ void genX64(Node* node) {
 
     printf("  push rbp\n");
     printf("  mov rbp, rsp\n");
-    // FIXME: copy args from registers to a stack
-    // if (node.argsLength > 0) {
-    //   printf("  push rdi");
-    // }
-    // if (node.argsLength > 1) {
-    //   printf("  push rsi");
-    // }
+    // TODO: do reverse push for args on stack?
+    if (node.argsLength > 0) {
+      printf("  push rdi\n");
+    }
+    if (node.argsLength > 1) {
+      printf("  push rsi\n");
+    }
+    if (node.argsLength > 2) {
+      assert(false, "TODO");
+    }
     // alloc local variables
-    printf("  sub rsp, %d\n", node.localsLength * long.sizeof);
-
+    else printf("  sub rsp, %d\n", node.localsLength * long.sizeof);
     for (Node* bd = node.funcBody.next;  bd; bd = bd.next) {
       printf("  // gen body\n");
       genX64(bd);
@@ -171,8 +171,7 @@ void genX64(Node* node) {
     return;
   }
   if (k == NodeKind.localVar) {
-    pushLocalVarAddress(node);
-    printf("  pop rax\n");
+    raxLocalVarAddress(node);
     // rax = *rax
     printf("  mov rax, [rax]\n");
     // return the deref value
@@ -180,7 +179,8 @@ void genX64(Node* node) {
     return;
   }
   if (k == NodeKind.assign) {
-    pushLocalVarAddress(node.lhs);
+    raxLocalVarAddress(node.lhs);
+    printf("  push rax\n");
     genX64(node.rhs);
     // rdi = rhs
     printf("  pop rdi\n");

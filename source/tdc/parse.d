@@ -19,6 +19,8 @@ struct LocalVar {
 /// Current parsing local variable array.
 private LocalVar* currentLocals;
 private long currentLocalsLength;
+// private LocalVar* currentArgs;
+private long currentArgsLength;
 
 /// Find local variables by name.
 private LocalVar* findLocalVar(Token* token) {
@@ -143,6 +145,8 @@ Node* primary() {
       // func
       node.kind = NodeKind.func;
       node.funcBody = statement();
+      // reset args
+      currentArgsLength = node.argsLength;
       return node;
     }
 
@@ -154,7 +158,7 @@ Node* primary() {
       node.var = lv;
       return node;
     }
-    long offset = 0;
+    long offset = (1 + currentArgsLength) * long.sizeof;
     if (currentLocals) {
       offset = currentLocals.offset + long.sizeof;
     }
@@ -458,10 +462,10 @@ unittest
   t.kind = TokenKind.identifier;
   t.str = "a";
   t.length = 1;
-  assert(findLocalVar(&t).offset == 0);
+  // assert(findLocalVar(&t).offset == 0);
   t.str = "b";
   t.length = 1;
   assert(findLocalVar(&t));
-  assert(findLocalVar(&t).offset == long.sizeof);
+  // assert(findLocalVar(&t).offset == long.sizeof);
   assert(stmt.argsLength == 2);
 }

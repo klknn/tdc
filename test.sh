@@ -1,20 +1,22 @@
 #!/bin/bash
 # -*- sh-basic-offset: 2 -*-
+
 gcc -c test/ext.c
 
 assert() {
   expected="$1"
   input="$2"
+  echo "$input"
 
-  ./bin/tdc "$input" > tmp.s
-  cc -o tmp tmp.s ext.o
+  ./bin/tdc "$input" > tmp.s || exit 1
+  cc -o tmp tmp.s ext.o || exit 1
   ./tmp
   actual="$?"
 
   if [ "$actual" = "$expected" ]; then
-      echo "$input => $actual"
+      echo "=> $actual OK!"
   else
-    echo "$input => $expected expected, but got $actual"
+    echo "=> $expected expected, but got $actual"
     exit 1
   fi
 }
@@ -22,6 +24,19 @@ assert() {
 assert 246 "
 foo() { return 123; }
 main() { a = 123; return foo() + a; }
+"
+assert 3 "
+foo(a) { return a; }
+main() { return foo(3); }
+"
+assert 4 "
+foo(a, b) { return a + b; }
+main() { return foo(1, 3); }
+"
+
+assert 13 "
+fib(a) { if (a <= 1) return a; return fib(a-2) + fib(a-1); }
+main() { return fib(7); }
 "
 
 assert 246 "main() { a = 123; return ext_double(a); }"
@@ -67,6 +82,7 @@ assert 2 "main() { if (1 == 0) return 1; else return 2; }"
 # for
 assert 10 "
 main() {
+  a = 0;
   b = 0;
   for (; a <= 10; a = a + 1)
     b = a;
