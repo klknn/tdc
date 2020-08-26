@@ -34,7 +34,7 @@ Node* setArg(Node* arg, const(char)* reg) {
   if (arg == null) return arg;
   genX64(arg);
   printf("  pop %s\n", reg);
-  return arg.next;
+  return arg.args;
 }
 
 /// Set args before calling a function.
@@ -47,7 +47,7 @@ void setArgs(Node* arg) {
   arg = setArg(arg, "r9");
   while (arg) {
     genX64(arg);
-    arg = arg.next;
+    arg = arg.args;
   }
 }
 
@@ -63,8 +63,15 @@ void genX64(Node* node) {
     printf("  push rbp\n");
     printf("  mov rbp, rsp\n");
     // FIXME: copy args from registers to a stack
+    // if (node.argsLength > 0) {
+    //   printf("  push rdi");
+    // }
+    // if (node.argsLength > 1) {
+    //   printf("  push rsi");
+    // }
     // alloc local variables
     printf("  sub rsp, %d\n", node.localsLength * long.sizeof);
+
     for (Node* bd = node.funcBody.next;  bd; bd = bd.next) {
       printf("  // gen body\n");
       genX64(bd);
@@ -81,7 +88,7 @@ void genX64(Node* node) {
 
     // if 16 byte aligned
     printf("  mov rax, 0\n");
-    setArgs(node.next);
+    setArgs(node.args);
     printf("  call %s\n", node.name);
     printf("  jmp .L.callend.%d\n", numForCall);
 
@@ -89,7 +96,7 @@ void genX64(Node* node) {
     printf(".L.call8offset.%d:\n", numForCall);
     printf("  sub rsp, 8\n");  // adjust
     printf("  mov rax, 0\n");
-    setArgs(node.next);
+    setArgs(node.args);
     printf("  call %s\n", node.name);
     printf("  add rsp, 8\n");  // revert
 

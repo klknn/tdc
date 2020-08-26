@@ -23,7 +23,9 @@ private long currentLocalsLength;
 /// Find local variables by name.
 private LocalVar* findLocalVar(Token* token) {
   for (LocalVar* l = currentLocals; l; l = l.next) {
-    if (l.length == token.length && strncmp(token.str, l.name, l.length) == 0) {
+    if (token.kind == TokenKind.identifier &&
+        l.length == token.length &&
+        strncmp(token.str, l.name, l.length) == 0) {
       return l;
     }
   }
@@ -71,6 +73,8 @@ struct Node {
   Node* funcBody;
   LocalVar* locals;
   long localsLength;
+  Node* args;
+  long argsLength;
 
   // if-else block
   Node* condExpr;
@@ -125,12 +129,13 @@ Node* primary() {
     // call or func
     if (consume("(")) {
       Node* node = newNode(NodeKind.call);
-      Node* args = node;
+      Node* iter = node;
       // parse args
       for (long i = 0; !consume(")"); ++i) {
         if (i != 0) expect(",");
-        args.next = expr();
-        args = args.next;
+        iter.args = expr();
+        iter = iter.args;
+        ++node.argsLength;
       }
       node.name = copyStr(t);
       // call
@@ -433,19 +438,30 @@ unittest
   Node* stmt = expr();
   assert(stmt.kind == NodeKind.call);
   assert(stmt.name[0..3] == "foo");
-  assert(stmt.next.integer == 123);
+  assert(stmt.args.integer == 123);
 }
 
 unittest
 {
   import tdc.tokenize;
 
-  const(char)* s = "foo(a, b) { return a * b; }";
+  const(char)* s = "foo(a, b) { return a; }";
   tokenize(s);
 
   Node* stmt = func();
   assert(stmt.kind == NodeKind.func);
   assert(stmt.name[0..3] == "foo");
-  assert(stmt.next.var.name[0..1] == "a");
-  assert(stmt.next.next.var.name[0..1] == "b");
+  assert(stmt.args.var.name[0..1] == "a");
+  assert(stmt.args.args.var.name[0..1] == "b");
+
+  Token t;
+  t.kind = TokenKind.identifier;
+  t.str = "a";
+  t.length = 1;
+  assert(findLocalVar(&t).offset == 0);
+  t.str = "b";
+  t.length = 1;
+  assert(findLocalVar(&t));
+  assert(findLocalVar(&t).offset == long.sizeof);
+  assert(stmt.argsLength == 2);
 }
