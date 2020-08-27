@@ -4,10 +4,13 @@
 !*.d
 !*.md
 !*.sh
+!*.yaml
 !Makefile
 !dub.json
 !.gitignore
 !.dir-locals.el
+!.github/
+
 
 .dub
 docs.json
