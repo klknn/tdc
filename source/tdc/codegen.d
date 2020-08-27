@@ -35,6 +35,13 @@ const(Node)* setArg(const(Node)* arg, const(char)* reg) {
   return arg.args;
 }
 
+/// Push args in reverse order.
+void reversePushArgs(const(Node)* arg) {
+  if (arg == null) return;
+  reversePushArgs(arg.args);
+  genX64(arg);
+}
+
 /// Set args before calling a function.
 void setArgs(const(Node)* arg) {
   arg = setArg(arg, "rdi");
@@ -43,10 +50,7 @@ void setArgs(const(Node)* arg) {
   arg = setArg(arg, "rcx");
   arg = setArg(arg, "r8");
   arg = setArg(arg, "r9");
-  while (arg) {
-    genX64(arg);
-    arg = arg.args;
-  }
+  reversePushArgs(arg);
 }
 
 /// Generate x64 asm in node and put a result in stack top
@@ -60,27 +64,25 @@ void genX64(const(Node)* node) {
 
     printf("  push rbp\n");
     printf("  mov rbp, rsp\n");
-    // TODO: do reverse push for args on stack?
-    if (node.argsLength > 0) {
-      printf("  push rdi\n");
-    }
-    if (node.argsLength > 1) {
-      printf("  push rsi\n");
-    }
-    if (node.argsLength > 2) {
-      printf("  push rdx\n");
-    }
-    if (node.argsLength > 3) {
-      printf("  push rcx\n");
+    // reverse push args in regs
+    // reset of args are pushed before func call
+    if (node.argsLength > 5) {
+      printf("  push r9\n");
     }
     if (node.argsLength > 4) {
       printf("  push r8\n");
     }
-    if (node.argsLength > 5) {
-      printf("  push r9\n");
+    if (node.argsLength > 3) {
+      printf("  push rcx\n");
     }
-    if (node.argsLength > 6) {
-      assert(false, "TODO");
+    if (node.argsLength > 2) {
+      printf("  push rdx\n");
+    }
+    if (node.argsLength > 1) {
+      printf("  push rsi\n");
+    }
+    if (node.argsLength > 0) {
+      printf("  push rdi\n");
     }
     // alloc local variables
     printf("  sub rsp, %d\n", node.localsLength * long.sizeof);

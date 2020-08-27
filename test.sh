@@ -53,6 +53,7 @@ main() { return fib(7); }
 assert 246 "main() { a = 123; return ext_double(a); }"
 assert 6 "main() { return ext_sum(1, 1, 1, 1, 1, 1); }"
 assert 8 "main() { return ext_sum7(1, 1, 1, 1, 1, 1, 2); }"
+assert 7 "main() { return ext_sum7_sub8(1, 1, 1, 1, 1, 1, 2, 1); }"
 assert 123 "main() { return ext_foo(); }"
 assert 124 "main() { a = 1; return a + ext_foo(); }"
 

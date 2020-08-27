@@ -147,6 +147,12 @@ Node* primary() {
       node.funcBody = statement();
       // reset args
       currentArgsLength = node.argsLength;
+      // reverse offsets because args outside regs will be pushed in reverse
+      iter = node.args;
+      for (long i = 0; i < currentArgsLength; ++i) {
+        iter.var.offset = (currentArgsLength - i) * long.sizeof;
+        iter = iter.args;
+      }
       return node;
     }
 
@@ -158,6 +164,7 @@ Node* primary() {
       node.var = lv;
       return node;
     }
+    // push local vars after func args
     long offset = (1 + currentArgsLength) * long.sizeof;
     if (currentLocals) {
       offset = currentLocals.offset + long.sizeof;

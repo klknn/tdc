@@ -17,5 +17,5 @@ clean:
 	rm -rfv *.o *.a tdc tdc-test-library tmp tmp.s bin
 
 test: bin/tdc
-	dub test --compiler=$(DC)
+	dub test --compiler=$(firstword $(DC))
 	./test.sh
