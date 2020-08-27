@@ -43,6 +43,7 @@ enum NodeKind {
   div,     // /
   eq,      // ==
   neq,     // !=
+  not,     // !
   lt,      // <
   leq,     // <=
   xor,     // ^
@@ -185,9 +186,19 @@ Node* primary() {
   return node;
 }
 
-/// unary := ("+" | "-")? unary | primary
+/// unary := ("!"| "+" | "-")? unary | primary
 Node* unary() {
-  if (consume("+")) {
+  if (consume("!")) {
+    // (x != 0) ^ 1
+    // TODO: optimize this in codegen.
+    Node* zero = newNode(NodeKind.integer);
+    zero.integer = 0;
+    Node* one = newNode(NodeKind.integer);
+    one.integer = 1;
+    return newNodeBinOp(
+        NodeKind.xor, one, newNodeBinOp(NodeKind.neq, zero, unary()));
+  }
+  else if (consume("+")) {
     return unary();
   }
   else if (consume("-")) {

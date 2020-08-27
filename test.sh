@@ -82,6 +82,9 @@ assert 10 "main() { return - - +10; }"
 assert 10 "main() { return + +10; }"
 
 # bool ops
+assert 0 "main() { return !123; }"
+assert 0 "main() { return !1; }"
+assert 1 "main() { return !0; }"
 assert 0 "main() { return 0 && exit(1); }"
 assert 0 "main() { return 0 && 0; }"
 assert 0 "main() { return 0 && 1; }"
