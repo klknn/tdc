@@ -89,11 +89,11 @@ assert 1 "main() { return 1 <= 2; }"
 assert 0 "main() { return 1 >= 2; }"
 
 # local vars
-assert 3 "
+assert 1 "
 main() {
   foo = 1;
   bar = 2;
-  return foo + bar;
+  return bar - foo;
 }"
 assert 4 "main() { a = 1; a = a + 3; return a; }"
 

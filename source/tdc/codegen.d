@@ -19,7 +19,7 @@ long numForBlock;
 long numForCall;
 
 /// Put the local variable address (offset from top) in rax
-void raxLocalVarAddress(Node* node) {
+void raxLocalVarAddress(const(Node)* node) {
   assert(node.kind == NodeKind.localVar);
   // copy a base pointer (rbp, top of function frame) to rax
   printf("  mov rax, rbp\n");
@@ -28,7 +28,7 @@ void raxLocalVarAddress(Node* node) {
 }
 
 /// Set arg to the given register and return the next arg.
-Node* setArg(Node* arg, const(char)* reg) {
+const(Node)* setArg(const(Node)* arg, const(char)* reg) {
   if (arg == null) return arg;
   genX64(arg);
   printf("  pop %s\n", reg);
@@ -36,14 +36,14 @@ Node* setArg(Node* arg, const(char)* reg) {
 }
 
 /// Push args in reverse order.
-void reversePushArgs(Node* arg) {
+void reversePushArgs(const(Node)* arg) {
   if (arg == null) return;
   reversePushArgs(arg.args);
   genX64(arg);
 }
 
 /// Set args before calling a function.
-void setArgs(Node* arg) {
+void setArgs(const(Node)* arg) {
   arg = setArg(arg, "rdi");
   arg = setArg(arg, "rsi");
   arg = setArg(arg, "rdx");
@@ -54,7 +54,7 @@ void setArgs(Node* arg) {
 }
 
 /// Generate x64 asm in node and put a result in stack top
-void genX64(Node* node) {
+void genX64(const(Node)* node) {
   if (node == null) return;
 
   NodeKind k = node.kind;
@@ -65,10 +65,6 @@ void genX64(Node* node) {
 
     printf("  push rbp\n");
     printf("  mov rbp, rsp\n");
-    // reverse push args in regs
-    // reset of args are pushed before func call
-    // assert(node.argsLength <= 6, "TODO");
-
     printf("  // push args\n");
     if (node.argsLength > 0) {
       printf("  mov QWORD PTR -8[rbp], rdi\n");
@@ -94,7 +90,7 @@ void genX64(Node* node) {
     }
     // alloc local variables
     printf("  sub rsp, %d\n", node.localsLength * long.sizeof);
-    for (Node* bd = node.funcBody.next;  bd; bd = bd.next) {
+    for (const(Node)* bd = node.funcBody.next;  bd; bd = bd.next) {
       printf("  // gen body\n");
       genX64(bd);
     }
@@ -128,7 +124,7 @@ void genX64(Node* node) {
     return;
   }
   if (k == NodeKind.compound) {
-    for (Node* stmt = node.next; stmt; stmt = stmt.next) {
+    for (const(Node)* stmt = node.next; stmt; stmt = stmt.next) {
       genX64(stmt);
       printf("  pop rax\n");
     }
