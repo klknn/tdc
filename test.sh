@@ -61,6 +61,7 @@ fib(a) { if (a <= 1) return a; return fib(a-2) + fib(a-1); }
 main() { return fib(7); }
 "
 
+# external function call
 assert 246 "main() { a = 123; return ext_double(a); }"
 assert 6 "main() { return ext_sum(1, 1, 1, 1, 1, 1); }"
 assert 8 "main() { return ext_sum7(1, 1, 1, 1, 1, 1, 2); }"
@@ -68,6 +69,7 @@ assert 5 "main() { return ext_sum7_sub8(1, 1, 1, 1, 1, 1, 2, 3); }"
 assert 123 "main() { return ext_foo(); }"
 assert 124 "main() { a = 1; return a + ext_foo(); }"
 
+# arithmetics
 assert 0 "main() { return 0; }"
 assert 42 "main() { return 42; }"
 assert 21 "main() { return 5+20-4; }"
@@ -79,9 +81,21 @@ assert 10 "main() { return - -10; }"
 assert 10 "main() { return - - +10; }"
 assert 10 "main() { return + +10; }"
 
+# bool ops
+assert 0 "main() { return 0 && exit(1); }"
+assert 0 "main() { return 0 && 0; }"
+assert 0 "main() { return 0 && 1; }"
 assert 0 "main() { return 1 && 0; }"
+assert 1 "main() { return 1 && 1; }"
+assert 1 "main() { return 1 || exit(1); }"
+assert 0 "main() { return 0 || 0; }"
+assert 1 "main() { return 0 || 1; }"
 assert 1 "main() { return 1 || 0; }"
+assert 1 "main() { return 1 || 1; }"
+assert 0 "main() { return 0 ^ 0; }"
+assert 1 "main() { return 0 ^ 1; }"
 assert 1 "main() { return 1 ^ 0; }"
+assert 0 "main() { return 1 ^ 1; }"
 assert 0 "main() { return 1 & 0; }"
 assert 1 "main() { return 1 | 0; }"
 assert 1 "main() { return 1 == 1; }"
