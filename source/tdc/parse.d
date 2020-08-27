@@ -76,6 +76,7 @@ struct Node {
   LocalVar* locals;
   long localsLength;
   Node* args;
+  long nth;
   long argsLength;
 
   // if-else block
@@ -147,12 +148,6 @@ Node* primary() {
       node.funcBody = statement();
       // reset args
       currentArgsLength = node.argsLength;
-      // reverse offsets because args outside regs will be pushed in reverse
-      iter = node.args;
-      for (long i = 0; i < currentArgsLength; ++i) {
-        iter.var.offset = (currentArgsLength - i) * long.sizeof;
-        iter = iter.args;
-      }
       return node;
     }
 
@@ -456,7 +451,7 @@ unittest
 {
   import tdc.tokenize;
 
-  const(char)* s = "foo(a, b) { return a; }";
+  const(char)* s = "foo(a, b) { return a; } main() {}";
   tokenize(s);
 
   Node* stmt = func();
@@ -475,4 +470,10 @@ unittest
   assert(findLocalVar(&t));
   // assert(findLocalVar(&t).offset == long.sizeof);
   assert(stmt.argsLength == 2);
+
+
+  Node* main = func();
+  assert(main.kind == NodeKind.func);
+  assert(main.name[0..4] == "main");
+  assert(main.argsLength == 0);
 }

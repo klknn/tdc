@@ -19,7 +19,7 @@ long numForBlock;
 long numForCall;
 
 /// Put the local variable address (offset from top) in rax
-void raxLocalVarAddress(const(Node)* node) {
+void raxLocalVarAddress(Node* node) {
   assert(node.kind == NodeKind.localVar);
   // copy a base pointer (rbp, top of function frame) to rax
   printf("  mov rax, rbp\n");
@@ -28,7 +28,7 @@ void raxLocalVarAddress(const(Node)* node) {
 }
 
 /// Set arg to the given register and return the next arg.
-const(Node)* setArg(const(Node)* arg, const(char)* reg) {
+Node* setArg(Node* arg, const(char)* reg) {
   if (arg == null) return arg;
   genX64(arg);
   printf("  pop %s\n", reg);
@@ -36,14 +36,14 @@ const(Node)* setArg(const(Node)* arg, const(char)* reg) {
 }
 
 /// Push args in reverse order.
-void reversePushArgs(const(Node)* arg) {
+void reversePushArgs(Node* arg) {
   if (arg == null) return;
   reversePushArgs(arg.args);
   genX64(arg);
 }
 
 /// Set args before calling a function.
-void setArgs(const(Node)* arg) {
+void setArgs(Node* arg) {
   arg = setArg(arg, "rdi");
   arg = setArg(arg, "rsi");
   arg = setArg(arg, "rdx");
@@ -54,11 +54,12 @@ void setArgs(const(Node)* arg) {
 }
 
 /// Generate x64 asm in node and put a result in stack top
-void genX64(const(Node)* node) {
+void genX64(Node* node) {
   if (node == null) return;
 
   NodeKind k = node.kind;
   if (k == NodeKind.func) {
+    printf("// NodeKind.func\n");
     printf(".global %s\n", node.name);
     printf("%s:\n", node.name);
 
@@ -66,27 +67,34 @@ void genX64(const(Node)* node) {
     printf("  mov rbp, rsp\n");
     // reverse push args in regs
     // reset of args are pushed before func call
-    if (node.argsLength > 5) {
-      printf("  push r9\n");
-    }
-    if (node.argsLength > 4) {
-      printf("  push r8\n");
-    }
-    if (node.argsLength > 3) {
-      printf("  push rcx\n");
-    }
-    if (node.argsLength > 2) {
-      printf("  push rdx\n");
+    // assert(node.argsLength <= 6, "TODO");
+
+    printf("  // push args\n");
+    if (node.argsLength > 0) {
+      printf("  mov QWORD PTR -8[rbp], rdi\n");
     }
     if (node.argsLength > 1) {
-      printf("  push rsi\n");
+      printf("  mov QWORD PTR -16[rbp], rsi\n");
     }
-    if (node.argsLength > 0) {
-      printf("  push rdi\n");
+    if (node.argsLength > 2) {
+      printf("  mov QWORD PTR -24[rbp], rdx\n");
+    }
+    if (node.argsLength > 3) {
+      printf("  mov QWORD PTR -32[rbp], rcx\n");
+    }
+    if (node.argsLength > 4) {
+      printf("  mov QWORD PTR -40[rbp], r8\n");
+    }
+    if (node.argsLength > 5) {
+      printf("  mov QWORD PTR -48[rbp], r9\n");
+    }
+    for (long n = 0; n + 5 < node.argsLength; ++n) {
+      printf("  mov rax, QWORD PTR %ld[rbp]\n", 16 + n * long.sizeof);
+      printf("  mov QWORD PTR -%ld[rbp], rax\n", 56 + n * long.sizeof);
     }
     // alloc local variables
     printf("  sub rsp, %d\n", node.localsLength * long.sizeof);
-    for (const(Node)* bd = node.funcBody.next;  bd; bd = bd.next) {
+    for (Node* bd = node.funcBody.next;  bd; bd = bd.next) {
       printf("  // gen body\n");
       genX64(bd);
     }
@@ -94,7 +102,7 @@ void genX64(const(Node)* node) {
   }
   if (k == NodeKind.call) {
     ++numForCall;
-
+    printf("  // NodeKind.call\n");
     // adjust rsp 16-byte aligned
     printf("  mov rax, rsp\n");
     printf("  and rax, 15\n");
@@ -120,7 +128,7 @@ void genX64(const(Node)* node) {
     return;
   }
   if (k == NodeKind.compound) {
-    for (const(Node)* stmt = node.next; stmt; stmt = stmt.next) {
+    for (Node* stmt = node.next; stmt; stmt = stmt.next) {
       genX64(stmt);
       printf("  pop rax\n");
     }

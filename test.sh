@@ -30,17 +30,28 @@ assert 3 "
 foo(a) { return a; }
 main() { return foo(3); }
 "
+
+assert 3 "
+foo(a, b) { return a - b; }
+main() { return foo(5, 2); }
+"
+
 # all args on reg
 assert 6 "
 foo(a, b, c, d, e, f) { return a + b + c + d + e + f; }
 main() { return foo(1, 1, 1, 1, 1, 1); }
 "
 
-# # TODO: 7th args on stack
-# assert 7 "
-# foo(a, b, c, d, e, f, g) { return a + b + c + d + e + f + g; }
-# main() { return foo(1, 1, 1, 1, 1, 1, 1); }
-# "
+# TODO: 7th args on stack
+assert 4 "
+foo(a, b, c, d, e, f, g) { return a + b + c + d + e + f - g; }
+main() { return foo(1, 1, 1, 1, 1, 2, 3); }
+"
+
+assert 5 "
+foo(a, b, c, d, e, f, g, h) { return a + b + c + d + e + f + g - h; }
+main() { return foo(1, 1, 1, 1, 1, 1, 1, 2); }
+"
 
 
 
@@ -53,7 +64,7 @@ main() { return fib(7); }
 assert 246 "main() { a = 123; return ext_double(a); }"
 assert 6 "main() { return ext_sum(1, 1, 1, 1, 1, 1); }"
 assert 8 "main() { return ext_sum7(1, 1, 1, 1, 1, 1, 2); }"
-assert 7 "main() { return ext_sum7_sub8(1, 1, 1, 1, 1, 1, 2, 1); }"
+assert 5 "main() { return ext_sum7_sub8(1, 1, 1, 1, 1, 1, 2, 3); }"
 assert 123 "main() { return ext_foo(); }"
 assert 124 "main() { a = 1; return a + ext_foo(); }"
 
