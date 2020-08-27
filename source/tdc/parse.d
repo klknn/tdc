@@ -45,6 +45,11 @@ enum NodeKind {
   neq,     // !=
   lt,      // <
   leq,     // <=
+  xor,     // ^
+  and,     // &
+  and2,    // &&
+  or,      // |
+  or2,     // ||
   integer, // 123
   localVar,  // local var
   compound,  // { ... }
@@ -270,10 +275,37 @@ Node* equality() {
   assert(false, "unreachable");
 }
 
-/// assign := equality ("=" assign)?
-Node* assign() {
+/// logic := equality (("&&"|"||"|"&"|"|"|"^") logic)*
+Node* logic() {
   Node* node = equality();
+  for (;;) {
+    if (consume("&&")) {
+      node = newNodeBinOp(NodeKind.and2, node, logic());
+    }
+    else if (consume("||")) {
+      node = newNodeBinOp(NodeKind.or2, node, logic());
+    }
+    else if (consume("&")) {
+      node = newNodeBinOp(NodeKind.and, node, logic());
+    }
+    else if (consume("|")) {
+      node = newNodeBinOp(NodeKind.or, node, logic());
+    }
+    else if (consume("^")) {
+      node = newNodeBinOp(NodeKind.xor, node, logic());
+    }
+    else {
+      return node;
+    }
+  }
+  assert(false, "unreachable");
+}
+
+/// assign := logic ("=" assign)?
+Node* assign() {
+  Node* node = logic();
   if (consume("=")) {
+    assert(node.kind == NodeKind.localVar);
     node = newNodeBinOp(NodeKind.assign, node, assign());
   }
   return node;
@@ -375,6 +407,19 @@ unittest
   assert(stmt.kind == NodeKind.assign);
   assert(stmt.lhs.kind == NodeKind.localVar);
   assert(stmt.rhs.kind == NodeKind.integer);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "1 == 2 && 1 || 3;";
+  tokenize(s);
+
+  Node* stmt = expr();
+  assert(stmt.kind == NodeKind.and2);
+  assert(stmt.lhs.kind == NodeKind.eq);
+  assert(stmt.rhs.kind == NodeKind.or2);
 }
 
 unittest

@@ -177,6 +177,7 @@ void tokenize(const(char)* p) {
     }
     // 2-char reserved
     if (strncmp(p, "==", 2) == 0 || strncmp(p, "!=", 2) == 0 ||
+        strncmp(p, "&&", 2) == 0 || strncmp(p, "||", 2) == 0 ||
         strncmp(p, "<=", 2) == 0 || strncmp(p, ">=", 2) == 0) {
       cur = newToken(TokenKind.reserved, cur, p, 2);
       p += 2;
@@ -185,6 +186,7 @@ void tokenize(const(char)* p) {
     // 1-char reserved
     if (*p == '+' || *p == '-' || *p == '*' || *p == '/' ||
         *p == '<' || *p == '>' ||
+        *p == '&' || *p == '|' || *p == '^' ||
         *p == '(' || *p == ')' || *p == '{' || *p == '}' ||
         *p == ',' || *p == ';' || *p == '=') {
       cur = newToken(TokenKind.reserved, cur, p, 1);

@@ -17,6 +17,7 @@ import tdc.stdc.stdio : printf;
 long numIfBlock;
 long numForBlock;
 long numForCall;
+long numAnd;
 
 /// Put the local variable address (offset from top) in rax
 void raxLocalVarAddress(const(Node)* node) {
@@ -211,6 +212,37 @@ void genX64(const(Node)* node) {
     return;
   }
 
+
+  // logical ops skipping rhs
+  if (k == NodeKind.and2 || k == NodeKind.or2) {
+    genX64(node.lhs);
+    ++numAnd;
+    printf("  pop rax\n");
+    printf("  push rax\n");
+    // skip rhs if rax == 0
+    printf("  cmp rax, 0\n");
+    if (k == NodeKind.and2) {
+      printf("  je");
+    }
+    else {
+      printf("  jne");
+    }
+    printf(" .LandOrEnd%ld\n", numAnd);
+
+    genX64(node.rhs);
+    printf("  pop rdi\n");
+    printf("  pop rax\n");
+    if (k == NodeKind.and2) {
+      printf("  and rax, rdi\n");
+    }
+    else {
+      printf("  or rax, rdi\n");
+    }
+    printf(".LandOrEnd%ld:\n", numAnd);
+    printf("  push rax\n");
+    return;
+  }
+
   // gen binary ops
   genX64(node.lhs);
   genX64(node.rhs);
@@ -219,7 +251,16 @@ void genX64(const(Node)* node) {
 
   // arithmetic ops
   // return value will be stored in rax
-  if (k == NodeKind.add) {
+  if (k == NodeKind.and) {
+    printf("  and rax, rdi\n");
+  }
+  else if (k == NodeKind.or) {
+    printf("  or rax, rdi\n");
+  }
+  else if (k == NodeKind.xor) {
+    printf("  xor rax, rdi\n");
+  }
+  else if (k == NodeKind.add) {
     printf("  add rax, rdi\n");
   }
   else if (k == NodeKind.sub) {
@@ -234,7 +275,7 @@ void genX64(const(Node)* node) {
     // rax = rdx:rax / rdi, rdx = rdx:rax % rdi
     printf("  idiv rdi\n");
   }
-  // logical ops
+  // cmp based ops
   else if (k == NodeKind.eq ||
            k == NodeKind.neq ||
            k == NodeKind.lt ||
