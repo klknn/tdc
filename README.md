@@ -1,5 +1,7 @@
 # Tiny D Compiler (tdc)
 
+![Tests](https://github.com/klknn/tdc/workflows/Tests/badge.svg)
+
 WIP
 
 limitations in implementaiton
