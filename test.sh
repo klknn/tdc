@@ -21,6 +21,7 @@ assert() {
   fi
 }
 
+# test func def
 assert 246 "
 foo() { return 123; }
 main() { a = 123; return foo() + a; }
@@ -29,11 +30,21 @@ assert 3 "
 foo(a) { return a; }
 main() { return foo(3); }
 "
-assert 4 "
-foo(a, b) { return a + b; }
-main() { return foo(1, 3); }
+# all args on reg
+assert 6 "
+foo(a, b, c, d, e, f) { return a + b + c + d + e + f; }
+main() { return foo(1, 1, 1, 1, 1, 1); }
 "
 
+# # TODO: 7th args on stack
+# assert 7 "
+# foo(a, b, c, d, e, f, g) { return a + b + c + d + e + f + g; }
+# main() { return foo(1, 1, 1, 1, 1, 1, 1); }
+# "
+
+
+
+# test recursion
 assert 13 "
 fib(a) { if (a <= 1) return a; return fib(a-2) + fib(a-1); }
 main() { return fib(7); }
