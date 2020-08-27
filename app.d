@@ -7,6 +7,7 @@ import tdc.stdc.stdio : fprintf, printf, stderr;
 
 extern (C)
 int main(int argc, char** argv) {
+  // TODO: file input
   if (argc != 2) {
     fprintf(stderr, "invalid number of arguments: %d != 2\n", argc);
     return 1;
