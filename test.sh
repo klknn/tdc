@@ -21,6 +21,15 @@ assert() {
   fi
 }
 
+# test pointer ops
+assert 3 "
+main() {
+  x = 3;
+  y = &x;
+  return *y;
+}
+"
+
 # test func def
 assert 246 "
 foo() { return 123; }

@@ -59,6 +59,18 @@ void genX64(const(Node)* node) {
   if (node == null) return;
 
   NodeKind k = node.kind;
+  if (k == NodeKind.address) {
+    raxLocalVarAddress(node.unary);
+    printf("  push rax\n");
+    return;
+  }
+  if (k == NodeKind.deref) {
+    raxLocalVarAddress(node.unary);
+    printf("  pop rax\n");
+    printf("  mov rax, [rax]\n");
+    printf("  push rax\n");
+    return;
+  }
   if (k == NodeKind.func) {
     printf("// NodeKind.func\n");
     printf(".global %s\n", node.name);

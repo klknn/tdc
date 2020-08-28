@@ -51,6 +51,8 @@ enum NodeKind {
   and2,    // &&
   or,      // |
   or2,     // ||
+  address, // &x
+  deref,   // *x
   integer, // 123
   localVar,  // local var
   compound,  // { ... }
@@ -72,6 +74,9 @@ struct Node {
   long integer;      // for integer
   LocalVar* var;     // for localVar
   long varLength;
+
+  // for unary ops
+  Node* unary;
 
   Node* next; // for array of nodes
 
@@ -186,8 +191,18 @@ Node* primary() {
   return node;
 }
 
-/// unary := ("!"| "+" | "-")? unary | primary
+/// unary := ("&" | "*" | "!"| "+" | "-")? unary | primary
 Node* unary() {
+  if (consume("*")) {
+    Node* node = newNode(NodeKind.deref);
+    node.unary = unary();
+    return node;
+  }
+  if (consume("&")) {
+    Node* node = newNode(NodeKind.address);
+    node.unary = unary();
+    return node;
+  }
   if (consume("!")) {
     // (x != 0) ^ 1
     // TODO: optimize this in codegen.
@@ -198,10 +213,10 @@ Node* unary() {
     return newNodeBinOp(
         NodeKind.xor, one, newNodeBinOp(NodeKind.neq, zero, unary()));
   }
-  else if (consume("+")) {
+  if (consume("+")) {
     return unary();
   }
-  else if (consume("-")) {
+  if (consume("-")) {
     // TODO: optimize this in codegen.
     Node* zero = newNode(NodeKind.integer);
     zero.integer = 0;
@@ -316,7 +331,7 @@ Node* logic() {
 Node* assign() {
   Node* node = logic();
   if (consume("=")) {
-    assert(node.kind == NodeKind.localVar);
+    // assert(node.kind == NodeKind.localVar);
     node = newNodeBinOp(NodeKind.assign, node, assign());
   }
   return node;
