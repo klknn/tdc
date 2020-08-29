@@ -6,7 +6,7 @@ module tdc.tokenize;
 import tdc.stdc.ctype : isalpha, isdigit, isspace;
 import tdc.stdc.stdlib : calloc, strtol;
 import tdc.stdc.stdio : fprintf, stderr;
-import tdc.stdc.string : strncmp, strlen;
+import tdc.stdc.string : strncmp, strlen, strncpy;
 
 
 /// Token kinds.
@@ -21,6 +21,7 @@ enum TokenKind {
   else_,
   while_,
   for_,
+  int_,
 }
 
 /// Token aggregates.
@@ -34,9 +35,14 @@ struct Token {
   long length;
 }
 
+/// Copy a new string from token.
+const(char)* copyStr(const(Token)* t) {
+  char* s = cast(char*) calloc(t.length + 1, char.sizeof);
+  return strncpy(s, t.str, t.length);
+}
 
 /// Pointer to currently parsing token.
-private Token* currentToken;
+private const(Token)* currentToken;
 /// Pointer to currently parsing string.
 private const(char)* currentString;
 void printErrorAt(const(char)* s) {
@@ -90,11 +96,11 @@ void expect(const(char)* s) {
 }
 
 /// Consume a token if it is an indentifier.
-Token* consumeIdentifier() {
+const(Token)* consumeIdentifier() {
   if (currentToken.kind != TokenKind.identifier) {
     return null;
   }
-  Token* ret = currentToken;
+  const(Token)* ret = currentToken;
   currentToken = currentToken.next;
   return ret;
 }
@@ -150,6 +156,11 @@ void tokenize(const(char)* p) {
       continue;
     }
     // keywords
+    if (isKeyword(p, "int")) {
+      cur = newToken(TokenKind.int_, cur, p, 3);
+      p += 3;
+      continue;
+    }
     if (isKeyword(p, "return")) {
       cur = newToken(TokenKind.return_, cur, p, 6);
       p += 6;
@@ -285,11 +296,23 @@ unittest {
   tokenize(s);
 
   assert(consumeKind(TokenKind.return_));
-  Token* t = consumeIdentifier();
+  auto t = consumeIdentifier();
   assert(t);
   assert(t.str[0 .. t.length] == "foo");
   assert(consume("+"));
-  Token* bar = consumeIdentifier();
+  auto bar = consumeIdentifier();
   assert(bar.str[0..bar.length] == "bar");
+  assert(isEof());
+}
+
+unittest {
+  const(char)* s = "int foo;";
+  tokenize(s);
+
+  assert(consumeKind(TokenKind.int_));
+  auto t = consumeIdentifier();
+  assert(t);
+  assert(t.str[0..t.length] == "foo");
+  expect(";");
   assert(isEof());
 }

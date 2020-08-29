@@ -1,10 +1,10 @@
 /// Parse module.
 module tdc.parse;
 
-import tdc.stdc.string : strncmp, strncpy;
+import tdc.stdc.string : strncmp;
 import tdc.stdc.stdlib : calloc;
 import tdc.tokenize : consume, consumeKind, consumeIdentifier,
-  expect, expectInteger, isEof, match, Token, TokenKind;
+  copyStr, expect, expectInteger, isEof, match, Token, TokenKind;
 
 @nogc nothrow:
 
@@ -23,7 +23,7 @@ private long currentLocalsLength;
 private long currentArgsLength;
 
 /// Find local variables by name.
-private LocalVar* findLocalVar(Token* token) {
+private const(LocalVar)* findLocalVar(const(Token)* token) {
   for (LocalVar* l = currentLocals; l; l = l.next) {
     if (token.kind == TokenKind.identifier &&
         l.length == token.length &&
@@ -72,13 +72,12 @@ struct Node {
   Node* lhs;
   Node* rhs;
   long integer;      // for integer
-  LocalVar* var;     // for localVar
-  long varLength;
+  const(LocalVar)* var;     // for localVar
+
+  Node* next;  // for multiple values
 
   // for unary ops
   Node* unary;
-
-  Node* next; // for array of nodes
 
   // func or call
   const(char)* name;
@@ -87,7 +86,6 @@ struct Node {
   LocalVar* locals;
   long localsLength;
   Node* args;
-  long nth;
   long argsLength;
 
   // if-else block
@@ -119,12 +117,6 @@ Node* newNodeBinOp(NodeKind kind, Node* lhs, Node* rhs) {
   return ret;
 }
 
-/// Copy a new string from token.
-const(char)* copyStr(Token* t) {
-  char* s = cast(char*) calloc(t.length + 1, char.sizeof);
-  return strncpy(s, t.str, t.length);
-}
-
 /// primary = "(" expr ")"
 ///         | identifier
 ///         | identifier "(" (expr ",")* expr? ")"
@@ -138,7 +130,7 @@ Node* primary() {
     return node;
   }
   // identifier ("(" expr* ")")?
-  Token* t = consumeIdentifier();
+  const(Token)* t = consumeIdentifier();
   if (t) {
     // call or func
     if (consume("(")) {
@@ -164,25 +156,13 @@ Node* primary() {
 
     // identifier
     Node* node = newNode(NodeKind.localVar);
-    LocalVar* lv = findLocalVar(t);
+    const(LocalVar)* lv = findLocalVar(t);
     if (lv) {
       // TODO: return lv; ?
       node.var = lv;
       return node;
     }
-    // push local vars after func args
-    long offset = (1 + currentArgsLength) * long.sizeof;
-    if (currentLocals) {
-      offset = currentLocals.offset + long.sizeof;
-    }
-    lv = cast(LocalVar*) calloc(1, LocalVar.sizeof);
-    lv.next = currentLocals;
-    lv.name = t.str;
-    lv.length = t.length;
-    lv.offset = offset;
-    currentLocals = lv;
-    currentLocalsLength += 1;
-    node.var = lv;
+    node.var = defineVar(t);
     return node;
   }
   // integer
@@ -190,6 +170,24 @@ Node* primary() {
   node.integer = expectInteger();
   return node;
 }
+
+/// Define a new LocalVar
+const(LocalVar)* defineVar(const(Token)* t) {
+  // push local vars after func args
+  long offset = (1 + currentArgsLength) * long.sizeof;
+  if (currentLocals) {
+    offset = currentLocals.offset + long.sizeof;
+  }
+  LocalVar* lv = cast(LocalVar*) calloc(1, LocalVar.sizeof);
+  lv.next = currentLocals;
+  lv.name = t.str;
+  lv.length = t.length;
+  lv.offset = offset;
+  currentLocals = lv;
+  currentLocalsLength += 1;
+  return lv;
+}
+
 
 /// unary := ("&" | "*" | "!"| "+" | "-")? unary | primary
 Node* unary() {
