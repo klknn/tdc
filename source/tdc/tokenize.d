@@ -45,9 +45,9 @@ const(char)* copyStr(const(Token)* t) {
 private const(Token)* currentToken;
 /// Pointer to currently parsing string.
 private const(char)* currentString;
-void printErrorAt(const(char)* s) {
+void printErrorAt(const(Token)* token) {
     fprintf(stderr, "%s\n", currentString);
-    for (long i = 0; i < s - currentString; ++i) {
+    for (long i = 0; i < token.str - currentString; ++i) {
       fprintf(stderr, " ");
     }
     fprintf(stderr, "^ HERE\n");
@@ -91,7 +91,7 @@ void expect(const(char)* s) {
     return;
   }
   fprintf(stderr, "ERROR: expected %s\n", s);
-  printErrorAt(currentToken.str);
+  printErrorAt(currentToken);
   assert(false);
 }
 
@@ -110,7 +110,7 @@ const(Token)* consumeIdentifier() {
 long expectInteger() {
   if (currentToken.kind != TokenKind.integer) {
     fprintf(stderr, "ERROR: expected integer\n");
-    printErrorAt(currentToken.str);
+    printErrorAt(currentToken);
     assert(false);
   }
   long integer = currentToken.integer;
@@ -221,7 +221,7 @@ void tokenize(const(char)* p) {
       continue;
     }
     fprintf(stderr, "ERROR: cannot tokenize\n");
-    printErrorAt(p);
+    printErrorAt(newToken(TokenKind.eof, cur, p, 0));
     break;
   }
   newToken(TokenKind.eof, cur, p, 0);

@@ -59,6 +59,10 @@ void genX64(const(Node)* node) {
   if (node == null) return;
 
   NodeKind k = node.kind;
+  if (k == NodeKind.defVar) {
+    // TOOD: calc offset here?
+    return;
+  }
   if (k == NodeKind.address) {
     raxLocalVarAddress(node.unary);
     printf("  push rax\n");

@@ -24,6 +24,8 @@ assert() {
 # test pointer ops
 assert 3 "
 main() {
+  int x;
+  int y;
   x = 3;
   y = &x;
   return *y;
@@ -33,7 +35,7 @@ main() {
 # test func def
 assert 246 "
 foo() { return 123; }
-main() { a = 123; return foo() + a; }
+main() { int a; a = 123; return foo() + a; }
 "
 assert 3 "
 foo(a) { return a; }
@@ -71,12 +73,12 @@ main() { return fib(7); }
 "
 
 # external function call
-assert 246 "main() { a = 123; return ext_double(a); }"
+assert 246 "main() { int a; a = 123; return ext_double(a); }"
 assert 6 "main() { return ext_sum(1, 1, 1, 1, 1, 1); }"
 assert 8 "main() { return ext_sum7(1, 1, 1, 1, 1, 1, 2); }"
 assert 5 "main() { return ext_sum7_sub8(1, 1, 1, 1, 1, 1, 2, 3); }"
 assert 123 "main() { return ext_foo(); }"
-assert 124 "main() { a = 1; return a + ext_foo(); }"
+assert 124 "main() { int a; a = 1; return a + ext_foo(); }"
 
 # arithmetics
 assert 0 "main() { return 0; }"
@@ -122,11 +124,13 @@ assert 0 "main() { return 1 >= 2; }"
 # local vars
 assert 1 "
 main() {
+  int foo;
+  int bar;
   foo = 1;
   bar = 2;
   return bar - foo;
 }"
-assert 4 "main() { a = 1; a = a + 3; return a; }"
+assert 4 "main() { int a; a = 1; a = a + 3; return a; }"
 
 # if-else
 assert 1 "main() { if (1 == 1) return 1; return 2; }"
@@ -136,6 +140,8 @@ assert 2 "main() { if (1 == 0) return 1; else return 2; }"
 # for
 assert 10 "
 main() {
+  int a;
+  int b;
   a = 0;
   b = 0;
   for (; a <= 10; a = a + 1)
@@ -146,6 +152,8 @@ main() {
 # while
 assert 10 "
 main() {
+  int a;
+  int b;
   a = 0;
   b = 0;
   while (b < 10) {

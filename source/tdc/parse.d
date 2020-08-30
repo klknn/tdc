@@ -3,8 +3,9 @@ module tdc.parse;
 
 import tdc.stdc.string : strncmp;
 import tdc.stdc.stdlib : calloc;
+import tdc.stdc.stdio : fprintf, stderr;
 import tdc.tokenize : consume, consumeKind, consumeIdentifier,
-  copyStr, expect, expectInteger, isEof, match, Token, TokenKind;
+  copyStr, expect, expectInteger, isEof, match, printErrorAt, Token, TokenKind;
 
 @nogc nothrow:
 
@@ -58,6 +59,7 @@ enum NodeKind {
   compound,  // { ... }
   call,      // identifier()
   func,      // func( ... ) { ... }
+  defVar,    // int x
   // keywords
   return_,
   if_,
@@ -162,6 +164,10 @@ Node* primary() {
       node.var = lv;
       return node;
     }
+    // TODO: assert not found
+    // printErrorAt(t);
+    // fprintf(stderr, "Variable '%s' not found\n", copyStr(t));
+    // assert(false, "undefined variable.");
     node.var = defineVar(t);
     return node;
   }
@@ -346,7 +352,16 @@ Node* expr() {
 ///           | "return"? expr ";"
 ///           | "{" statement* "}"
 ///           | identifier "(" identifier* ")" statement
+///           | "int" identifier ";"
 Node* statement() {
+  if (consumeKind(TokenKind.int_)) {
+    Node* node = newNode(NodeKind.defVar);
+    const(Token)* t = consumeIdentifier();
+    assert(findLocalVar(t) == null);
+    node.var = defineVar(t);
+    expect(";");
+    return node;
+  }
   // "{" statement* "}"
   if (consume("{")) {
     Node* node = newNode(NodeKind.compound);
@@ -424,10 +439,12 @@ unittest
 {
   import tdc.tokenize;
 
-  const(char)* s = "a = 123;";
+  const(char)* s = "int a; a = 123;";
   tokenize(s);
 
-  Node* stmt = assign();
+  Node* stmt = statement();
+  assert(stmt.kind == NodeKind.defVar);
+  stmt = statement();
   assert(stmt.kind == NodeKind.assign);
   assert(stmt.lhs.kind == NodeKind.localVar);
   assert(stmt.rhs.kind == NodeKind.integer);
@@ -480,9 +497,10 @@ unittest
 {
   import tdc.tokenize;
 
-  const(char)* s = "for (A;A<10;A=A+1) {1;2;3;}";
+  const(char)* s = "int A;for (A = 0;A<10;A=A+1) {1;2;3;}";
   tokenize(s);
 
+  statement();
   Node* stmt = statement();
   assert(stmt.kind == NodeKind.for_);
   assert(stmt.forBlock.kind == NodeKind.compound);
@@ -515,34 +533,34 @@ unittest
   assert(stmt.name[0..3] == "foo");
   assert(stmt.args.integer == 123);
 }
+//  TODO: support int func(int a, int b)
+// unittest
+// {
+//   import tdc.tokenize;
 
-unittest
-{
-  import tdc.tokenize;
+//   const(char)* s = "foo(a, b) { return a; } main() {}";
+//   tokenize(s);
 
-  const(char)* s = "foo(a, b) { return a; } main() {}";
-  tokenize(s);
+//   Node* stmt = func();
+//   assert(stmt.kind == NodeKind.func);
+//   assert(stmt.name[0..3] == "foo");
+//   assert(stmt.args.var.name[0..1] == "a");
+//   assert(stmt.args.args.var.name[0..1] == "b");
 
-  Node* stmt = func();
-  assert(stmt.kind == NodeKind.func);
-  assert(stmt.name[0..3] == "foo");
-  assert(stmt.args.var.name[0..1] == "a");
-  assert(stmt.args.args.var.name[0..1] == "b");
-
-  Token t;
-  t.kind = TokenKind.identifier;
-  t.str = "a";
-  t.length = 1;
-  // assert(findLocalVar(&t).offset == 0);
-  t.str = "b";
-  t.length = 1;
-  assert(findLocalVar(&t));
-  // assert(findLocalVar(&t).offset == long.sizeof);
-  assert(stmt.argsLength == 2);
+//   Token t;
+//   t.kind = TokenKind.identifier;
+//   t.str = "a";
+//   t.length = 1;
+//   // assert(findLocalVar(&t).offset == 0);
+//   t.str = "b";
+//   t.length = 1;
+//   assert(findLocalVar(&t));
+//   // assert(findLocalVar(&t).offset == long.sizeof);
+//   assert(stmt.argsLength == 2);
 
 
-  Node* main = func();
-  assert(main.kind == NodeKind.func);
-  assert(main.name[0..4] == "main");
-  assert(main.argsLength == 0);
-}
+//   Node* main = func();
+//   assert(main.kind == NodeKind.func);
+//   assert(main.name[0..4] == "main");
+//   assert(main.argsLength == 0);
+// }
