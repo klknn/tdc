@@ -23,7 +23,7 @@ assert() {
 
 # test pointer ops
 assert 3 "
-main() {
+int main() {
   int x;
   int y;
   x = 3;
@@ -34,112 +34,117 @@ main() {
 
 # test func def
 assert 246 "
-foo() { return 123; }
-main() { int a; a = 123; return foo() + a; }
+int foo() { return 123; }
+int main() { int a; a = 123; return foo() + a; }
 "
 assert 3 "
-foo(a) { return a; }
-main() { return foo(3); }
+int foo(int a) { return a; }
+int main() { return foo(3); }
 "
 
 assert 3 "
-foo(a, b) { return a - b; }
-main() { return foo(5, 2); }
+int foo(int a, int b) { return a - b; }
+int main() { return foo(5, 2); }
 "
 
 # all args on reg
 assert 6 "
-foo(a, b, c, d, e, f) { return a + b + c + d + e + f; }
-main() { return foo(1, 1, 1, 1, 1, 1); }
+int foo(int a, int b, int c, int d, int e, int f) {
+  return a + b + c + d + e + f;
+}
+int main() { return foo(1, 1, 1, 1, 1, 1); }
 "
-
-# TODO: 7th args on stack
+x
 assert 4 "
-foo(a, b, c, d, e, f, g) { return a + b + c + d + e + f - g; }
-main() { return foo(1, 1, 1, 1, 1, 2, 3); }
+int foo(int a, int b, int c, int d, int e, int f, int g) {
+  return a + b + c + d + e + f - g;
+}
+int main() { return foo(1, 1, 1, 1, 1, 2, 3); }
 "
 
 assert 5 "
-foo(a, b, c, d, e, f, g, h) { return a + b + c + d + e + f + g - h; }
-main() { return foo(1, 1, 1, 1, 1, 1, 1, 2); }
+int foo(int a, int b, int c, int d, int e, int f, int g, int h) {
+  return a + b + c + d + e + f + g - h;
+}
+int main() { return foo(1, 1, 1, 1, 1, 1, 1, 2); }
 "
 
 
 
 # test recursion
 assert 13 "
-fib(a) { if (a <= 1) return a; return fib(a-2) + fib(a-1); }
-main() { return fib(7); }
+int fib(int a) { if (a <= 1) return a; return fib(a-2) + fib(a-1); }
+int main() { return fib(7); }
 "
 
 # external function call
-assert 246 "main() { int a; a = 123; return ext_double(a); }"
-assert 6 "main() { return ext_sum(1, 1, 1, 1, 1, 1); }"
-assert 8 "main() { return ext_sum7(1, 1, 1, 1, 1, 1, 2); }"
-assert 5 "main() { return ext_sum7_sub8(1, 1, 1, 1, 1, 1, 2, 3); }"
-assert 123 "main() { return ext_foo(); }"
-assert 124 "main() { int a; a = 1; return a + ext_foo(); }"
+assert 246 "int main() { int a; a = 123; return ext_double(a); }"
+assert 6 "int main() { return ext_sum(1, 1, 1, 1, 1, 1); }"
+assert 8 "int main() { return ext_sum7(1, 1, 1, 1, 1, 1, 2); }"
+assert 5 "int main() { return ext_sum7_sub8(1, 1, 1, 1, 1, 1, 2, 3); }"
+assert 123 "int main() { return ext_foo(); }"
+assert 124 "int main() { int a; a = 1; return a + ext_foo(); }"
 
 # arithmetics
-assert 0 "main() { return 0; }"
-assert 42 "main() { return 42; }"
-assert 21 "main() { return 5+20-4; }"
-assert 47 "main() { return 5+6*7; }"
-assert 15 "main() { return 5*(9-6); }"
-assert 4 "main() { return (3+5)/2; }"
-assert 10 "main() { return -10+20; }"
-assert 10 "main() { return - -10; }"
-assert 10 "main() { return - - +10; }"
-assert 10 "main() { return + +10; }"
+assert 0 "int main() { return 0; }"
+assert 42 "int main() { return 42; }"
+assert 21 "int main() { return 5+20-4; }"
+assert 47 "int main() { return 5+6*7; }"
+assert 15 "int main() { return 5*(9-6); }"
+assert 4 "int main() { return (3+5)/2; }"
+assert 10 "int main() { return -10+20; }"
+assert 10 "int main() { return - -10; }"
+assert 10 "int main() { return - - +10; }"
+assert 10 "int main() { return + +10; }"
 
 # bool ops
-assert 0 "main() { return !123; }"
-assert 0 "main() { return !1; }"
-assert 1 "main() { return !0; }"
-assert 0 "main() { return 0 && exit(1); }"
-assert 0 "main() { return 0 && 0; }"
-assert 0 "main() { return 0 && 1; }"
-assert 0 "main() { return 1 && 0; }"
-assert 1 "main() { return 1 && 1; }"
-assert 1 "main() { return 1 || exit(1); }"
-assert 0 "main() { return 0 || 0; }"
-assert 1 "main() { return 0 || 1; }"
-assert 1 "main() { return 1 || 0; }"
-assert 1 "main() { return 1 || 1; }"
-assert 0 "main() { return 0 ^ 0; }"
-assert 1 "main() { return 0 ^ 1; }"
-assert 1 "main() { return 1 ^ 0; }"
-assert 0 "main() { return 1 ^ 1; }"
-assert 0 "main() { return 1 & 0; }"
-assert 1 "main() { return 1 | 0; }"
-assert 1 "main() { return 1 == 1; }"
-assert 0 "main() { return 1 == 0; }"
-assert 0 "main() { return 1 != 1; }"
-assert 1 "main() { return 1 != 0; }"
-assert 1 "main() { return 1 < 2; }"
-assert 0 "main() { return 1 > 2; }"
-assert 1 "main() { return 1 <= 2; }"
-assert 0 "main() { return 1 >= 2; }"
+assert 0 "int main() { return !123; }"
+assert 0 "int main() { return !1; }"
+assert 1 "int main() { return !0; }"
+assert 0 "int main() { return 0 && exit(1); }"
+assert 0 "int main() { return 0 && 0; }"
+assert 0 "int main() { return 0 && 1; }"
+assert 0 "int main() { return 1 && 0; }"
+assert 1 "int main() { return 1 && 1; }"
+assert 1 "int main() { return 1 || exit(1); }"
+assert 0 "int main() { return 0 || 0; }"
+assert 1 "int main() { return 0 || 1; }"
+assert 1 "int main() { return 1 || 0; }"
+assert 1 "int main() { return 1 || 1; }"
+assert 0 "int main() { return 0 ^ 0; }"
+assert 1 "int main() { return 0 ^ 1; }"
+assert 1 "int main() { return 1 ^ 0; }"
+assert 0 "int main() { return 1 ^ 1; }"
+assert 0 "int main() { return 1 & 0; }"
+assert 1 "int main() { return 1 | 0; }"
+assert 1 "int main() { return 1 == 1; }"
+assert 0 "int main() { return 1 == 0; }"
+assert 0 "int main() { return 1 != 1; }"
+assert 1 "int main() { return 1 != 0; }"
+assert 1 "int main() { return 1 < 2; }"
+assert 0 "int main() { return 1 > 2; }"
+assert 1 "int main() { return 1 <= 2; }"
+assert 0 "int main() { return 1 >= 2; }"
 
 # local vars
 assert 1 "
-main() {
+int main() {
   int foo;
   int bar;
   foo = 1;
   bar = 2;
   return bar - foo;
 }"
-assert 4 "main() { int a; a = 1; a = a + 3; return a; }"
+assert 4 "int main() { int a; a = 1; a = a + 3; return a; }"
 
 # if-else
-assert 1 "main() { if (1 == 1) return 1; return 2; }"
-assert 2 "main() { if (1 == 0) return 1; return 2; }"
-assert 2 "main() { if (1 == 0) return 1; else return 2; }"
+assert 1 "int main() { if (1 == 1) return 1; return 2; }"
+assert 2 "int main() { if (1 == 0) return 1; return 2; }"
+assert 2 "int main() { if (1 == 0) return 1; else return 2; }"
 
 # for
 assert 10 "
-main() {
+int main() {
   int a;
   int b;
   a = 0;
@@ -151,7 +156,7 @@ main() {
 
 # while
 assert 10 "
-main() {
+int main() {
   int a;
   int b;
   a = 0;

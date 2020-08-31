@@ -134,7 +134,7 @@ Node* primary() {
   // identifier ("(" expr* ")")?
   const(Token)* t = consumeIdentifier();
   if (t) {
-    // call or func
+    // func call
     if (consume("(")) {
       Node* node = newNode(NodeKind.call);
       Node* iter = node;
@@ -146,13 +146,6 @@ Node* primary() {
         ++node.argsLength;
       }
       node.name = copyStr(t);
-      // call
-      if (!match("{")) return node;
-      // func
-      node.kind = NodeKind.func;
-      node.funcBody = statement();
-      // reset args
-      currentArgsLength = node.argsLength;
       return node;
     }
 
@@ -160,16 +153,12 @@ Node* primary() {
     Node* node = newNode(NodeKind.localVar);
     const(LocalVar)* lv = findLocalVar(t);
     if (lv) {
-      // TODO: return lv; ?
       node.var = lv;
       return node;
     }
-    // TODO: assert not found
-    // printErrorAt(t);
-    // fprintf(stderr, "Variable '%s' not found\n", copyStr(t));
-    // assert(false, "undefined variable.");
-    node.var = defineVar(t);
-    return node;
+    printErrorAt(t);
+    fprintf(stderr, "Variable '%s' not found\n", copyStr(t));
+    assert(false, "undefined variable.");
   }
   // integer
   Node* node = newNode(NodeKind.integer);
@@ -353,10 +342,39 @@ Node* expr() {
 ///           | "{" statement* "}"
 ///           | identifier "(" identifier* ")" statement
 ///           | "int" identifier ";"
+///           | "int" identifier "(" argsList ")" "{" statement* "}"
 Node* statement() {
   if (consumeKind(TokenKind.int_)) {
-    Node* node = newNode(NodeKind.defVar);
     const(Token)* t = consumeIdentifier();
+    assert(t, "identifier expected");
+    // func def
+    if (consume("(")) {
+      Node* node = newNode(NodeKind.func);
+      Node* iter = node;
+      // parse args
+      for (long i = 0; !consume(")"); ++i) {
+        if (i != 0) expect(",");
+        bool isInt = consumeKind(TokenKind.int_);
+        assert(isInt, "only int arg is supported now.");
+
+        // define arg var
+        const(Token)* atoken = consumeIdentifier();
+        Node* anode = newNode(NodeKind.defVar);
+        anode.var = defineVar(atoken);
+        iter.args = anode;
+        iter = iter.args;
+        ++node.argsLength;
+      }
+      node.name = copyStr(t);
+      // func
+      node.kind = NodeKind.func;
+      node.funcBody = statement();
+      // reset args
+      currentArgsLength = node.argsLength;
+      return node;
+    }
+    // variable def
+    Node* node = newNode(NodeKind.defVar);
     assert(findLocalVar(t) == null);
     node.var = defineVar(t);
     expect(";");
@@ -533,34 +551,31 @@ unittest
   assert(stmt.name[0..3] == "foo");
   assert(stmt.args.integer == 123);
 }
-//  TODO: support int func(int a, int b)
-// unittest
-// {
-//   import tdc.tokenize;
 
-//   const(char)* s = "foo(a, b) { return a; } main() {}";
-//   tokenize(s);
+unittest
+{
+  import tdc.tokenize;
 
-//   Node* stmt = func();
-//   assert(stmt.kind == NodeKind.func);
-//   assert(stmt.name[0..3] == "foo");
-//   assert(stmt.args.var.name[0..1] == "a");
-//   assert(stmt.args.args.var.name[0..1] == "b");
+  const(char)* s = "int foo(int a, int b) { return a; } int main() {}";
+  tokenize(s);
 
-//   Token t;
-//   t.kind = TokenKind.identifier;
-//   t.str = "a";
-//   t.length = 1;
-//   // assert(findLocalVar(&t).offset == 0);
-//   t.str = "b";
-//   t.length = 1;
-//   assert(findLocalVar(&t));
-//   // assert(findLocalVar(&t).offset == long.sizeof);
-//   assert(stmt.argsLength == 2);
+  Node* stmt = func();
+  assert(stmt.kind == NodeKind.func);
+  assert(stmt.name[0..3] == "foo");
+  assert(stmt.args.var.name[0..1] == "a");
+  assert(stmt.args.args.var.name[0..1] == "b");
 
+  Token t;
+  t.kind = TokenKind.identifier;
+  t.str = "a";
+  t.length = 1;
+  t.str = "b";
+  t.length = 1;
+  assert(findLocalVar(&t));
+  assert(stmt.argsLength == 2);
 
-//   Node* main = func();
-//   assert(main.kind == NodeKind.func);
-//   assert(main.name[0..4] == "main");
-//   assert(main.argsLength == 0);
-// }
+  Node* main = func();
+  assert(main.kind == NodeKind.func);
+  assert(main.name[0..4] == "main");
+  assert(main.argsLength == 0);
+}
