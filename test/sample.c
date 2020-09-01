@@ -1,9 +1,16 @@
 #include <stdint.h>
 
-int64_t foo(int64_t a) {
-  return a;
+typedef struct _S {
+  int64_t i;
+  struct _S* s;
+} S;
+
+int64_t foo(int64_t a, S* s) {
+  return a + s->i;
 }
 
 int main() {
-  return foo(1);
+  S s;
+  s.i = 123;
+  return foo(1, &s);
 }

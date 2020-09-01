@@ -6,6 +6,7 @@ import tdc.stdc.stdlib : calloc;
 import tdc.stdc.stdio : fprintf, stderr;
 import tdc.tokenize : consume, consumeKind, consumeIdentifier,
   copyStr, expect, expectInteger, isEof, match, printErrorAt, Token, TokenKind;
+import tdc.type : newType, Type, TypeKind;
 
 @nogc nothrow:
 
@@ -15,6 +16,7 @@ struct LocalVar {
   const(char)* name;
   long length;  // of name
   long offset;  // from rbp
+  Type* type;
 }
 
 /// Current parsing local variable array.
@@ -167,7 +169,7 @@ Node* primary() {
 }
 
 /// Define a new LocalVar
-const(LocalVar)* defineVar(const(Token)* t) {
+LocalVar* defineVar(const(Token)* t) {
   // push local vars after func args
   long offset = (1 + currentArgsLength) * long.sizeof;
   if (currentLocals) {
@@ -344,6 +346,7 @@ Node* expr() {
 ///           | "int" identifier ";"
 ///           | "int" identifier "(" argsList ")" "{" statement* "}"
 Node* statement() {
+  // TODO support non-int def, e.g., int*
   if (consumeKind(TokenKind.int_)) {
     const(Token)* t = consumeIdentifier();
     assert(t, "identifier expected");
@@ -355,12 +358,14 @@ Node* statement() {
       for (long i = 0; !consume(")"); ++i) {
         if (i != 0) expect(",");
         bool isInt = consumeKind(TokenKind.int_);
-        assert(isInt, "only int arg is supported now.");
+        assert(isInt, "only int arg is supported now.");  // TODO
 
         // define arg var
         const(Token)* atoken = consumeIdentifier();
         Node* anode = newNode(NodeKind.defVar);
-        anode.var = defineVar(atoken);
+        LocalVar* var = defineVar(atoken);
+        var.type = newType(TypeKind.int_);
+        anode.var = var;
         iter.args = anode;
         iter = iter.args;
         ++node.argsLength;
@@ -373,10 +378,12 @@ Node* statement() {
       currentArgsLength = node.argsLength;
       return node;
     }
-    // variable def
+    // variable ref
     Node* node = newNode(NodeKind.defVar);
-    assert(findLocalVar(t) == null);
-    node.var = defineVar(t);
+    assert(findLocalVar(t) == null, "variable already defined.");
+    LocalVar* var = defineVar(t);
+    var.type = newType(TypeKind.int_);
+    node.var = var;
     expect(";");
     return node;
   }
