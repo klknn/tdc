@@ -25,10 +25,23 @@ assert() {
 assert 3 "
 int main() {
   int x;
-  int y;
+  int* y;
   x = 3;
   y = &x;
   return *y;
+}
+"
+
+# multi deref
+assert 3 "
+int main() {
+  int x;
+  int* y;
+  int** z;
+  x = 3;
+  y = &x;
+  z = &y;
+  return **z;
 }
 "
 
@@ -46,6 +59,12 @@ assert 3 "
 int foo(int a, int b) { return a - b; }
 int main() { return foo(5, 2); }
 "
+
+assert 3 "
+int foo(int* a) { return *a; }
+int main() { int x; x = 3; return foo(&x); }
+"
+
 
 # all args on reg
 assert 6 "

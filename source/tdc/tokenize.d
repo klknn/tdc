@@ -52,6 +52,9 @@ void printErrorAt(const(Token)* token) {
     }
     fprintf(stderr, "^ HERE\n");
 }
+void printErrorCurrent() {
+  printErrorAt(currentToken);
+}
 
 /// Check s is match to the current token.
 bool match(const(char)* s) {

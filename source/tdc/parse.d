@@ -5,7 +5,8 @@ import tdc.stdc.string : strncmp;
 import tdc.stdc.stdlib : calloc;
 import tdc.stdc.stdio : fprintf, stderr;
 import tdc.tokenize : consume, consumeKind, consumeIdentifier,
-  copyStr, expect, expectInteger, isEof, match, printErrorAt, Token, TokenKind;
+  copyStr, expect, expectInteger, isEof, match, printErrorAt, printErrorCurrent,
+  Token, TokenKind;
 import tdc.type : newType, Type, TypeKind;
 
 @nogc nothrow:
@@ -91,6 +92,7 @@ struct Node {
   long localsLength;
   Node* args;
   long argsLength;
+  Type* returnType;
 
   // if-else block
   Node* condExpr;
@@ -337,39 +339,63 @@ Node* expr() {
   return assign();
 }
 
+/// type = "int" ("*")*
+Type* consumeType() {
+  if (consumeKind(TokenKind.int_)) {
+    Type* ret = newType(TypeKind.int_);
+    while (consume("*")) {
+      Type* t = newType(TypeKind.ptr);
+      t.ptrof = ret;
+      ret = t;
+    }
+    return ret;
+  }
+  return null;
+}
+
+/// Sets args (params) to the function node.
+/// params = (type identifier ",")* type identifier
+void setParams(Node* node) {
+  Node* iter = node;
+  for (long i = 0; !consume(")"); ++i) {
+    if (i != 0) expect(",");
+    Type* type = consumeType();
+    if (type == null) {
+      printErrorCurrent();
+      fprintf(stderr, "Type expected");
+      assert(type);
+    }
+
+    // define arg var
+    const(Token)* atoken = consumeIdentifier();
+    Node* anode = newNode(NodeKind.defVar);
+    LocalVar* var = defineVar(atoken);
+    var.type = type;
+    anode.var = var;
+    iter.args = anode;
+    iter = iter.args;
+    ++node.argsLength;
+  }
+}
+
 /// statement = "if" "(" expr ")" statement ("else" statement)?
 ///           | "while" "(" expr ")" statement
 ///           | "for" "(" expr? ";" expr? ";" expr? ")" statement
 ///           | "return"? expr ";"
 ///           | "{" statement* "}"
-///           | identifier "(" identifier* ")" statement
-///           | "int" identifier ";"
-///           | "int" identifier "(" argsList ")" "{" statement* "}"
+///           | type identifier ";"
+///           | type identifier "(" params ")" "{" statement* "}"
 Node* statement() {
   // TODO support non-int def, e.g., int*
-  if (consumeKind(TokenKind.int_)) {
+  Type* type = consumeType();
+  if (type) {
     const(Token)* t = consumeIdentifier();
     assert(t, "identifier expected");
     // func def
     if (consume("(")) {
       Node* node = newNode(NodeKind.func);
-      Node* iter = node;
-      // parse args
-      for (long i = 0; !consume(")"); ++i) {
-        if (i != 0) expect(",");
-        bool isInt = consumeKind(TokenKind.int_);
-        assert(isInt, "only int arg is supported now.");  // TODO
-
-        // define arg var
-        const(Token)* atoken = consumeIdentifier();
-        Node* anode = newNode(NodeKind.defVar);
-        LocalVar* var = defineVar(atoken);
-        var.type = newType(TypeKind.int_);
-        anode.var = var;
-        iter.args = anode;
-        iter = iter.args;
-        ++node.argsLength;
-      }
+      node.returnType = type;
+      setParams(node);
       node.name = copyStr(t);
       // func
       node.kind = NodeKind.func;
@@ -378,11 +404,11 @@ Node* statement() {
       currentArgsLength = node.argsLength;
       return node;
     }
-    // variable ref
+    // variable def
     Node* node = newNode(NodeKind.defVar);
     assert(findLocalVar(t) == null, "variable already defined.");
     LocalVar* var = defineVar(t);
-    var.type = newType(TypeKind.int_);
+    var.type = type;
     node.var = var;
     expect(";");
     return node;
@@ -522,10 +548,22 @@ unittest
 {
   import tdc.tokenize;
 
-  const(char)* s = "int A;for (A = 0;A<10;A=A+1) {1;2;3;}";
+  const(char)* s = "int A; int* B; for (A = 0;A<10;A=A+1) {1;2;3;}";
   tokenize(s);
 
-  statement();
+  Node* declInt = statement();
+  assert(declInt.kind == NodeKind.defVar);
+  assert(declInt.var.name[0..1] == "A");
+  assert(declInt.var.length == 1);
+  assert(declInt.var.type.kind == TypeKind.int_);
+
+  Node* declIntPtr = statement();
+  assert(declIntPtr.kind == NodeKind.defVar);
+  assert(declIntPtr.var.name[0..1] == "B");
+  assert(declIntPtr.var.length == 1);
+  assert(declIntPtr.var.type.kind == TypeKind.ptr);
+  assert(declIntPtr.var.type.ptrof.kind == TypeKind.int_);
+
   Node* stmt = statement();
   assert(stmt.kind == NodeKind.for_);
   assert(stmt.forBlock.kind == NodeKind.compound);
@@ -563,14 +601,18 @@ unittest
 {
   import tdc.tokenize;
 
-  const(char)* s = "int foo(int a, int b) { return a; } int main() {}";
+  const(char)* s = "int foo(int a, int* b) { return a; } int main() {}";
   tokenize(s);
 
   Node* stmt = func();
   assert(stmt.kind == NodeKind.func);
   assert(stmt.name[0..3] == "foo");
+  assert(stmt.returnType.kind == TypeKind.int_);
   assert(stmt.args.var.name[0..1] == "a");
+  assert(stmt.args.var.type.kind == TypeKind.int_);
   assert(stmt.args.args.var.name[0..1] == "b");
+  assert(stmt.args.args.var.type.kind == TypeKind.ptr);
+  assert(stmt.args.args.var.type.ptrof.kind == TypeKind.int_);
 
   Token t;
   t.kind = TokenKind.identifier;
@@ -585,4 +627,19 @@ unittest
   assert(main.kind == NodeKind.func);
   assert(main.name[0..4] == "main");
   assert(main.argsLength == 0);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "int** foo;";
+  tokenize(s);
+
+  Node* stmt = statement();
+  assert(stmt.kind == NodeKind.defVar);
+  assert(stmt.var.name[0..3] == "foo");
+  assert(stmt.var.type.kind == TypeKind.ptr);
+  assert(stmt.var.type.ptrof.kind == TypeKind.ptr);
+  assert(stmt.var.type.ptrof.ptrof.kind == TypeKind.int_);
 }

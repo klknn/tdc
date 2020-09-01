@@ -64,12 +64,13 @@ void genX64(const(Node)* node) {
     return;
   }
   if (k == NodeKind.address) {
+    assert(node.unary.kind == NodeKind.localVar, "TODO support non-variable address.");
     raxLocalVarAddress(node.unary);
     printf("  push rax\n");
     return;
   }
   if (k == NodeKind.deref) {
-    raxLocalVarAddress(node.unary);
+    genX64(node.unary);
     printf("  pop rax\n");
     printf("  mov rax, [rax]\n");
     printf("  push rax\n");
