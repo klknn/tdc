@@ -208,15 +208,22 @@ void genX64(const(Node)* node) {
   }
   if (k == NodeKind.localVar) {
     raxLocalVarAddress(node);
-    // rax = *rax
-    printf("  mov rax, [rax]\n");
     // return the deref value
-    printf("  push rax\n");
+    printf("  push [rax]\n");
     return;
   }
   if (k == NodeKind.assign) {
-    raxLocalVarAddress(node.lhs);
-    printf("  push rax\n");
+    // TODO: a new function to generate lval
+    if (node.lhs.kind == NodeKind.localVar) {
+      raxLocalVarAddress(node.lhs);
+      printf("  push rax\n");
+    }
+    else if (node.lhs.kind == NodeKind.deref) {
+      genX64(node.unary);
+    }
+    else {
+      assert(false, "unsupported NodeKind for assign.");
+    }
     genX64(node.rhs);
     // rdi = rhs
     printf("  pop rdi\n");

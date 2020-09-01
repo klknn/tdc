@@ -45,6 +45,18 @@ int main() {
 }
 "
 
+# deref assign
+assert 3 "
+int main() {
+  int x;
+  int* y;
+  x = 1;
+  y = &x;
+  *y = 3;
+  return x;
+}
+"
+
 # test func def
 assert 246 "
 int foo() { return 123; }
