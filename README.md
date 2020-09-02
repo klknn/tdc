@@ -1,6 +1,8 @@
 # Tiny D Compiler (tdc)
 
 ![Tests](https://github.com/klknn/tdc/workflows/Tests/badge.svg)
+[![codecov](https://codecov.io/gh/klknn/tdc/branch/master/graph/badge.svg)](https://codecov.io/gh/klknn/tdc)
+
 
 WIP
 
