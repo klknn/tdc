@@ -608,6 +608,18 @@ unittest
 {
   import tdc.tokenize;
 
+  const(char)* s = "while (1) {}";
+  tokenize(s);
+
+  Node* stmt = statement();
+  // lower while to for
+  assert(stmt.kind == NodeKind.for_);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
   const(char)* s = "foo();";
   tokenize(s);
 
@@ -674,4 +686,41 @@ unittest
   assert(stmt.type.kind == TypeKind.ptr);
   assert(stmt.type.ptrof.kind == TypeKind.ptr);
   assert(stmt.type.ptrof.ptrof.kind == TypeKind.int_);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "1.sizeof";
+  tokenize(s);
+
+  Node* stmt = expr();
+  assert(stmt.kind == NodeKind.integer);
+  assert(stmt.integer == int.sizeof);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "(1.sizeof).sizeof";
+  tokenize(s);
+
+  Node* stmt = expr();
+  assert(stmt.kind == NodeKind.integer);
+  assert(stmt.integer == int.sizeof);
+}
+
+unittest
+{
+  import tdc.tokenize;
+
+  const(char)* s = "int* x; x.sizeof";
+  tokenize(s);
+
+  statement();
+  Node* stmt = expr();
+  assert(stmt.kind == NodeKind.integer);
+  assert(stmt.integer == (int*).sizeof);
 }
