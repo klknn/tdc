@@ -21,6 +21,14 @@ assert() {
   fi
 }
 
+# test sizeof
+assert 4 "int main() { return 1.sizeof; }"
+
+assert 4 "int main() { return (1.sizeof).sizeof; }"
+
+assert 8 "int main() { int* x; return x.sizeof; }"
+
+
 # test pointer ops
 assert 3 "
 int main() {

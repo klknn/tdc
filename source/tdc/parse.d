@@ -5,15 +5,15 @@ import tdc.stdc.string : strncmp;
 import tdc.stdc.stdlib : calloc;
 import tdc.stdc.stdio : fprintf, stderr;
 import tdc.tokenize : consume, consumeKind, consumeIdentifier,
-  copyStr, expect, expectInteger, isEof, match, printErrorAt, printErrorCurrent,
-  Token, TokenKind;
-import tdc.type : newType, Type, TypeKind;
+  copyStr, expect, expectInteger, expectKind, isEof, match,
+  printErrorAt, printErrorCurrent, Token, TokenKind;
+import tdc.type : newType, sizeOf, Type, TypeKind;
 
 @nogc nothrow:
 
 /// Local variable.
 struct LocalVar {
-  LocalVar* next;
+  const(LocalVar)* next;
   const(char)* name;
   long length;  // of name
   long offset;  // from rbp
@@ -28,7 +28,7 @@ private long currentArgsLength;
 
 /// Find local variables by name.
 private const(LocalVar)* findLocalVar(const(Token)* token) {
-  for (LocalVar* l = currentLocals; l; l = l.next) {
+  for (const(LocalVar)* l = currentLocals; l; l = l.next) {
     if (token.kind == TokenKind.identifier &&
         l.length == token.length &&
         strncmp(token.str, l.name, l.length) == 0) {
@@ -111,9 +111,18 @@ struct Node {
   Node* compound;
 }
 
+/// Create a new Node of NodeKind.
 Node* newNode(NodeKind kind) {
   Node* ret = cast(Node*) calloc(1, Node.sizeof);
   ret.kind = kind;
+  return ret;
+}
+
+/// Create a new Node of integer.
+Node* newNodeInteger(long i) {
+  Node* ret = newNode(NodeKind.integer);
+  ret.integer = i;
+  ret.type = newType(TypeKind.int_);
   return ret;
 }
 
@@ -160,6 +169,7 @@ Node* primary() {
     const(LocalVar)* lv = findLocalVar(t);
     if (lv) {
       node.var = lv;
+      node.type = lv.type;
       return node;
     }
     printErrorAt(t);
@@ -167,10 +177,7 @@ Node* primary() {
     assert(false, "undefined variable.");
   }
   // integer
-  Node* node = newNode(NodeKind.integer);
-  node.integer = expectInteger();
-  node.type = newType(TypeKind.int_);
-  return node;
+  return newNodeInteger(expectInteger());
 }
 
 /// Define a new LocalVar
@@ -190,7 +197,6 @@ LocalVar* defineVar(const(Token)* t) {
   return lv;
 }
 
-
 /// unary := ("&" | "*" | "!"| "+" | "-")? unary | primary
 Node* unary() {
   if (consume("*")) {
@@ -205,27 +211,24 @@ Node* unary() {
   }
   if (consume("!")) {
     // (x != 0) ^ 1
-    // TODO: optimize this in codegen.
-    Node* zero = newNode(NodeKind.integer);
-    zero.type = newType(TypeKind.int_);
-    zero.integer = 0;
-    Node* one = newNode(NodeKind.integer);
-    one.type = newType(TypeKind.int_);
-    one.integer = 1;
     return newNodeBinOp(
-        NodeKind.xor, one, newNodeBinOp(NodeKind.neq, zero, unary()));
+        NodeKind.xor, newNodeInteger(1),
+        newNodeBinOp(NodeKind.neq, newNodeInteger(0), unary()));
   }
   if (consume("+")) {
     return unary();
   }
   if (consume("-")) {
-    // TODO: optimize this in codegen.
-    Node* zero = newNode(NodeKind.integer);
-    zero.integer = 0;
-    zero.type = newType(TypeKind.int_);
-    return newNodeBinOp(NodeKind.sub, zero, unary());
+    return newNodeBinOp(NodeKind.sub, newNodeInteger(0), unary());
   }
-  return primary();
+  // expr "." sizeof
+  // TODO: support 1.sizeof.sizeof without ()
+  Node* node = primary();
+  if (!consume(".")) {
+    return node;
+  }
+  expectKind(TokenKind.sizeof_);
+  return newNodeInteger(sizeOf(node.type));
 }
 
 /// mulOrDiv := unary (("*"|"/") unary)*
@@ -245,16 +248,9 @@ Node* mulOrDiv() {
   assert(false, "unreachable");
 }
 
-bool isPonter(const(Node)* node) {
-  if (node.type && node.type.kind == TypeKind.ptr) return true;
-  if (node.var && node.var.type.kind == TypeKind.ptr) return true;
-  return false;
-}
-
-const(Type)* typeOf(const(Node)* node) {
-  if (node.type) return node.type;
-  if (node.var.type) return node.var.type;
-  return null;
+/// Predicate if node is a pointer type.
+bool isPointer(const(Node)* node) {
+  return node.type && node.type.kind == TypeKind.ptr;
 }
 
 /// arith := mulOrDiv (("+"|"-") mulOrDiv)*
@@ -272,22 +268,18 @@ Node* arith() {
     }
 
     // pointer stride
-    if (isPonter(node.lhs)) {
-      Node* stride = newNode(NodeKind.integer);
-      stride.type = newType(TypeKind.int_);
-      stride.integer = 4;  // TODO: implement sizeof
-      Node* rhs = newNodeBinOp(NodeKind.mul, stride, node.rhs);
-      node = newNodeBinOp(node.kind, node.lhs, rhs);
-      node.type = typeOf(node.lhs);
+    if (isPointer(node.lhs)) {
+      Node* stride = newNodeInteger(sizeOf(node.lhs.type.ptrof));
+      node = newNodeBinOp(
+          node.kind, node.lhs, newNodeBinOp(NodeKind.mul, stride, node.rhs));
+      node.type = node.lhs.type;
       continue;
     }
-    if (isPonter(node.rhs)) {
-      Node* stride = newNode(NodeKind.integer);
-      stride.type = newType(TypeKind.int_);
-      stride.integer = 4;  // TODO: implement sizeof
-      Node* lhs = newNodeBinOp(NodeKind.mul, stride, node.lhs);
-      node = newNodeBinOp(node.kind, lhs, node.rhs);
-      node.type = typeOf(node.rhs);
+    if (isPointer(node.rhs)) {
+      Node* stride = newNodeInteger(sizeOf(node.rhs.type.ptrof));
+      node = newNodeBinOp(
+          node.kind, newNodeBinOp(NodeKind.mul, stride, node.lhs), node.rhs);
+      node.type = node.rhs.type;
       continue;
     }
   }

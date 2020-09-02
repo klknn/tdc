@@ -22,6 +22,7 @@ enum TokenKind {
   while_,
   for_,
   int_,
+  sizeof_,
 }
 
 /// Token aggregates.
@@ -85,6 +86,17 @@ bool consumeKind(TokenKind k) {
   if (currentToken.kind != k) return false;
   currentToken = currentToken.next;
   return true;
+}
+
+/// Check expected kind is found.
+void expectKind(TokenKind k) {
+  if (consumeKind(k)) {
+    return;
+  }
+  // TODO: enum to string
+  fprintf(stderr, "ERROR: expected kind %d\n", k);
+  printErrorAt(currentToken);
+  assert(false);
 }
 
 /// Check expected string is found.
@@ -189,6 +201,11 @@ void tokenize(const(char)* p) {
       p += 3;
       continue;
     }
+    if (isKeyword(p, "sizeof")) {
+      cur = newToken(TokenKind.sizeof_, cur, p, 6);
+      p += 6;
+      continue;
+    }
     // 2-char reserved
     if (strncmp(p, "==", 2) == 0 || strncmp(p, "!=", 2) == 0 ||
         strncmp(p, "&&", 2) == 0 || strncmp(p, "||", 2) == 0 ||
@@ -202,7 +219,7 @@ void tokenize(const(char)* p) {
         *p == '<' || *p == '>' || *p == '!' ||
         *p == '&' || *p == '|' || *p == '^' ||
         *p == '(' || *p == ')' || *p == '{' || *p == '}' ||
-        *p == ',' || *p == ';' || *p == '=') {
+        *p == ',' || *p == '.' || *p == ';' || *p == '=') {
       cur = newToken(TokenKind.reserved, cur, p, 1);
       ++p;
       continue;

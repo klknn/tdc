@@ -19,3 +19,14 @@ Type* newType(TypeKind kind) {
   ret.kind = kind;
   return ret;
 }
+
+int sizeOf(const(Type)* type) {
+  if (type.kind == TypeKind.int_) {
+    return 4;
+  }
+  if (type.kind == TypeKind.ptr) {
+    // TODO: check 32/64bit
+    return 8;
+  }
+  assert(false, "unknown type for .sizeof");
+}
