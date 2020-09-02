@@ -13,6 +13,7 @@ module tdc.codegen;
 
 import tdc.parse : Node, NodeKind;
 import tdc.stdc.stdio : printf;
+import tdc.type : TypeKind;
 
 long numIfBlock;
 long numForBlock;
@@ -78,7 +79,8 @@ void genX64(const(Node)* node) {
   }
   if (k == NodeKind.func) {
     printf("// NodeKind.func\n");
-    printf(".global %s\n", node.name);
+    printf("  .global %s\n", node.name);
+    printf("  .type %s, @function\n", node.name);
     printf("%s:\n", node.name);
 
     printf("  push rbp\n");

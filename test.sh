@@ -49,13 +49,47 @@ int main() {
 assert 3 "
 int main() {
   int x;
-  int* y;
   x = 1;
+  int* y;
   y = &x;
   *y = 3;
   return x;
 }
 "
+
+# pointer + int
+assert 4 "
+int main() {
+  int* p;
+  ext_alloc4(&p, 1, 2, 3, 4);
+  int* q;
+  q = 3 + p;
+  return *q;
+}
+"
+
+# pointer - int
+assert 3 "
+int main() {
+  int* p;
+  ext_alloc4(&p, 1, 2, 3, 4);
+  int* q;
+  q = 1 + p + 2;
+  return *(q - 1);
+}
+"
+
+# TODO ptr (+|-) ptr
+# assert 3 "
+# int main() {
+#   int* p;
+#   ext_alloc4(&p, 1, 2, 3, 4);
+#   int* q;
+#   q = p + 3;
+#   return q - p;
+# }
+# "
+
 
 # test func def
 assert 246 "

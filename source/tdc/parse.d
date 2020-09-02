@@ -17,7 +17,7 @@ struct LocalVar {
   const(char)* name;
   long length;  // of name
   long offset;  // from rbp
-  Type* type;
+  const(Type)* type;
 }
 
 /// Current parsing local variable array.
@@ -78,6 +78,8 @@ struct Node {
   Node* rhs;
   long integer;      // for integer
   const(LocalVar)* var;     // for localVar
+
+  const(Type)* type;
 
   Node* next;  // for multiple values
 
@@ -167,6 +169,7 @@ Node* primary() {
   // integer
   Node* node = newNode(NodeKind.integer);
   node.integer = expectInteger();
+  node.type = newType(TypeKind.int_);
   return node;
 }
 
@@ -204,8 +207,10 @@ Node* unary() {
     // (x != 0) ^ 1
     // TODO: optimize this in codegen.
     Node* zero = newNode(NodeKind.integer);
+    zero.type = newType(TypeKind.int_);
     zero.integer = 0;
     Node* one = newNode(NodeKind.integer);
+    one.type = newType(TypeKind.int_);
     one.integer = 1;
     return newNodeBinOp(
         NodeKind.xor, one, newNodeBinOp(NodeKind.neq, zero, unary()));
@@ -217,6 +222,7 @@ Node* unary() {
     // TODO: optimize this in codegen.
     Node* zero = newNode(NodeKind.integer);
     zero.integer = 0;
+    zero.type = newType(TypeKind.int_);
     return newNodeBinOp(NodeKind.sub, zero, unary());
   }
   return primary();
@@ -239,6 +245,18 @@ Node* mulOrDiv() {
   assert(false, "unreachable");
 }
 
+bool isPonter(const(Node)* node) {
+  if (node.type && node.type.kind == TypeKind.ptr) return true;
+  if (node.var && node.var.type.kind == TypeKind.ptr) return true;
+  return false;
+}
+
+const(Type)* typeOf(const(Node)* node) {
+  if (node.type) return node.type;
+  if (node.var.type) return node.var.type;
+  return null;
+}
+
 /// arith := mulOrDiv (("+"|"-") mulOrDiv)*
 Node* arith() {
   Node* node = mulOrDiv();
@@ -251,6 +269,26 @@ Node* arith() {
     }
     else {
       return node;
+    }
+
+    // pointer stride
+    if (isPonter(node.lhs)) {
+      Node* stride = newNode(NodeKind.integer);
+      stride.type = newType(TypeKind.int_);
+      stride.integer = 4;  // TODO: implement sizeof
+      Node* rhs = newNodeBinOp(NodeKind.mul, stride, node.rhs);
+      node = newNodeBinOp(node.kind, node.lhs, rhs);
+      node.type = typeOf(node.lhs);
+      continue;
+    }
+    if (isPonter(node.rhs)) {
+      Node* stride = newNode(NodeKind.integer);
+      stride.type = newType(TypeKind.int_);
+      stride.integer = 4;  // TODO: implement sizeof
+      Node* lhs = newNodeBinOp(NodeKind.mul, stride, node.lhs);
+      node = newNodeBinOp(node.kind, lhs, node.rhs);
+      node.type = typeOf(node.rhs);
+      continue;
     }
   }
   assert(false, "unreachable");
@@ -371,6 +409,7 @@ void setParams(Node* node) {
     Node* anode = newNode(NodeKind.defVar);
     LocalVar* var = defineVar(atoken);
     var.type = type;
+    anode.type = type;
     anode.var = var;
     iter.args = anode;
     iter = iter.args;
@@ -409,6 +448,7 @@ Node* statement() {
     assert(findLocalVar(t) == null, "variable already defined.");
     LocalVar* var = defineVar(t);
     var.type = type;
+    node.type = type;
     node.var = var;
     expect(";");
     return node;
@@ -555,14 +595,14 @@ unittest
   assert(declInt.kind == NodeKind.defVar);
   assert(declInt.var.name[0..1] == "A");
   assert(declInt.var.length == 1);
-  assert(declInt.var.type.kind == TypeKind.int_);
+  assert(declInt.type.kind == TypeKind.int_);
 
   Node* declIntPtr = statement();
   assert(declIntPtr.kind == NodeKind.defVar);
   assert(declIntPtr.var.name[0..1] == "B");
   assert(declIntPtr.var.length == 1);
-  assert(declIntPtr.var.type.kind == TypeKind.ptr);
-  assert(declIntPtr.var.type.ptrof.kind == TypeKind.int_);
+  assert(declIntPtr.type.kind == TypeKind.ptr);
+  assert(declIntPtr.type.ptrof.kind == TypeKind.int_);
 
   Node* stmt = statement();
   assert(stmt.kind == NodeKind.for_);
@@ -609,10 +649,10 @@ unittest
   assert(stmt.name[0..3] == "foo");
   assert(stmt.returnType.kind == TypeKind.int_);
   assert(stmt.args.var.name[0..1] == "a");
-  assert(stmt.args.var.type.kind == TypeKind.int_);
+  assert(stmt.args.type.kind == TypeKind.int_);
   assert(stmt.args.args.var.name[0..1] == "b");
-  assert(stmt.args.args.var.type.kind == TypeKind.ptr);
-  assert(stmt.args.args.var.type.ptrof.kind == TypeKind.int_);
+  assert(stmt.args.args.type.kind == TypeKind.ptr);
+  assert(stmt.args.args.type.ptrof.kind == TypeKind.int_);
 
   Token t;
   t.kind = TokenKind.identifier;
@@ -639,7 +679,7 @@ unittest
   Node* stmt = statement();
   assert(stmt.kind == NodeKind.defVar);
   assert(stmt.var.name[0..3] == "foo");
-  assert(stmt.var.type.kind == TypeKind.ptr);
-  assert(stmt.var.type.ptrof.kind == TypeKind.ptr);
-  assert(stmt.var.type.ptrof.ptrof.kind == TypeKind.int_);
+  assert(stmt.type.kind == TypeKind.ptr);
+  assert(stmt.type.ptrof.kind == TypeKind.ptr);
+  assert(stmt.type.ptrof.ptrof.kind == TypeKind.int_);
 }
