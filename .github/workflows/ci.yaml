@@ -20,3 +20,7 @@ jobs:
 
             - name: Run tests
               run: make test DC=$DC
+
+            - name: Codecov
+              if: ${{ matrix.dc == 'dmd-latest' }}
+              run: bash <(curl -s https://codecov.io/bash)
