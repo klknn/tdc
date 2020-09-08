@@ -7,19 +7,23 @@ import tdc.stdc.stdlib : calloc;
 enum TypeKind {
   int_,
   ptr,
+  array,
 }
 
 struct Type {
   TypeKind kind;
-  Type* ptrof;
+  Type* ptrOf;
+  size_t arrayLength;
 }
 
+/// Create a new type with TypeKind.
 Type* newType(TypeKind kind) {
   Type* ret = cast(Type*) calloc(1, Type.sizeof);
   ret.kind = kind;
   return ret;
 }
 
+/// Calculate size of type.
 int sizeOf(const(Type)* type) {
   if (type.kind == TypeKind.int_) {
     return 4;

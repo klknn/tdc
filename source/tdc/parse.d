@@ -4,8 +4,8 @@ module tdc.parse;
 import tdc.stdc.string : strncmp;
 import tdc.stdc.stdlib : calloc;
 import tdc.stdc.stdio : fprintf, stderr;
-import tdc.tokenize : consume, consumeKind, consumeIdentifier,
-  copyStr, expect, expectInteger, expectKind, isEof, match,
+import tdc.tokenize : consumeReserved, consumeKind, consumeIdentifier,
+  copyStr, expectReserved, expectInteger, expectKind, isEof, match,
   printErrorAt, printErrorCurrent, Token, TokenKind;
 import tdc.type : newType, sizeOf, Type, TypeKind;
 
@@ -15,7 +15,6 @@ import tdc.type : newType, sizeOf, Type, TypeKind;
 struct LocalVar {
   const(LocalVar)* next;
   const(char)* name;
-  long length;  // of name
   long offset;  // from rbp
   const(Type)* type;
 }
@@ -30,8 +29,8 @@ private long currentArgsLength;
 private const(LocalVar)* findLocalVar(const(Token)* token) {
   for (const(LocalVar)* l = currentLocals; l; l = l.next) {
     if (token.kind == TokenKind.identifier &&
-        l.length == token.length &&
-        strncmp(token.str, l.name, l.length) == 0) {
+        l.name[token.length] == 0 &&
+        strncmp(token.str, l.name, token.length) == 0) {
       return l;
     }
   }
@@ -141,21 +140,21 @@ Node* newNodeBinOp(NodeKind kind, Node* lhs, Node* rhs) {
 ///         | integer
 Node* primary() {
   // "(" expr ")"
-  if (consume("(")) {
+  if (consumeReserved("(")) {
     Node* node = expr();
-    expect(")");
+    expectReserved(")");
     return node;
   }
   // identifier ("(" expr* ")")?
   const(Token)* t = consumeIdentifier();
   if (t) {
     // func call
-    if (consume("(")) {
+    if (consumeReserved("(")) {
       Node* node = newNode(NodeKind.call);
       Node* iter = node;
       // parse args
-      for (long i = 0; !consume(")"); ++i) {
-        if (i != 0) expect(",");
+      for (long i = 0; !consumeReserved(")"); ++i) {
+        if (i != 0) expectReserved(",");
         iter.args = expr();
         iter = iter.args;
         ++node.argsLength;
@@ -181,7 +180,7 @@ Node* primary() {
 }
 
 /// Define a new LocalVar
-LocalVar* defineVar(const(Token)* t) {
+LocalVar* defineVar(const(Token)* t, const(Type)* ty) {
   // push local vars after func args
   long offset = (1 + currentArgsLength) * long.sizeof;
   if (currentLocals) {
@@ -189,42 +188,51 @@ LocalVar* defineVar(const(Token)* t) {
   }
   LocalVar* lv = cast(LocalVar*) calloc(1, LocalVar.sizeof);
   lv.next = currentLocals;
-  lv.name = t.str;
-  lv.length = t.length;
+  lv.name = copyStr(t);
   lv.offset = offset;
+  lv.type = ty;
   currentLocals = lv;
   currentLocalsLength += 1;
   return lv;
 }
 
+/// Define a new LocalVar of array
+LocalVar* defineArray(const(Token)* t, const(Type)* ty) {
+  // push local vars after func args
+  assert(ty.arrayLength > 0);
+  LocalVar* lv = defineVar(t, ty);
+  lv.offset += ty.arrayLength - 1;
+  return lv;
+}
+
 /// unary := ("&" | "*" | "!"| "+" | "-")? unary | primary
 Node* unary() {
-  if (consume("*")) {
+  if (consumeReserved("*")) {
     Node* node = newNode(NodeKind.deref);
     node.unary = unary();
     return node;
   }
-  if (consume("&")) {
+  if (consumeReserved("&")) {
     Node* node = newNode(NodeKind.address);
     node.unary = unary();
     return node;
   }
-  if (consume("!")) {
+  if (consumeReserved("!")) {
     // (x != 0) ^ 1
     return newNodeBinOp(
         NodeKind.xor, newNodeInteger(1),
         newNodeBinOp(NodeKind.neq, newNodeInteger(0), unary()));
   }
-  if (consume("+")) {
+  if (consumeReserved("+")) {
     return unary();
   }
-  if (consume("-")) {
+  if (consumeReserved("-")) {
     return newNodeBinOp(NodeKind.sub, newNodeInteger(0), unary());
   }
   // expr "." sizeof
   // TODO: support 1.sizeof.sizeof without ()
   Node* node = primary();
-  if (!consume(".")) {
+  if (!consumeReserved(".")) {
     return node;
   }
   expectKind(TokenKind.sizeof_);
@@ -235,10 +243,10 @@ Node* unary() {
 Node* mulOrDiv() {
   Node* node = unary();
   for (;;) {
-    if (consume("*")) {
+    if (consumeReserved("*")) {
       node = newNodeBinOp(NodeKind.mul, node, unary());
     }
-    else if (consume("/")) {
+    else if (consumeReserved("/")) {
       node = newNodeBinOp(NodeKind.div, node, unary());
     }
     else {
@@ -257,10 +265,10 @@ bool isPointer(const(Node)* node) {
 Node* arith() {
   Node* node = mulOrDiv();
   for (;;) {
-    if (consume("+")) {
+    if (consumeReserved("+")) {
       node = newNodeBinOp(NodeKind.add, node, mulOrDiv());
     }
-    else if (consume("-")) {
+    else if (consumeReserved("-")) {
       node = newNodeBinOp(NodeKind.sub, node, mulOrDiv());
     }
     else {
@@ -269,14 +277,14 @@ Node* arith() {
 
     // pointer stride
     if (isPointer(node.lhs)) {
-      Node* stride = newNodeInteger(sizeOf(node.lhs.type.ptrof));
+      Node* stride = newNodeInteger(sizeOf(node.lhs.type.ptrOf));
       node = newNodeBinOp(
           node.kind, node.lhs, newNodeBinOp(NodeKind.mul, stride, node.rhs));
       node.type = node.lhs.type;
       continue;
     }
     if (isPointer(node.rhs)) {
-      Node* stride = newNodeInteger(sizeOf(node.rhs.type.ptrof));
+      Node* stride = newNodeInteger(sizeOf(node.rhs.type.ptrOf));
       node = newNodeBinOp(
           node.kind, newNodeBinOp(NodeKind.mul, stride, node.lhs), node.rhs);
       node.type = node.rhs.type;
@@ -290,17 +298,17 @@ Node* arith() {
 Node* relational() {
   Node* node = arith();
   for (;;) {
-    if (consume("<")) {
+    if (consumeReserved("<")) {
       node = newNodeBinOp(NodeKind.lt, node, arith());
     }
-    else if (consume("<=")) {
+    else if (consumeReserved("<=")) {
       node = newNodeBinOp(NodeKind.leq, node, arith());
     }
-    else if (consume(">")) {
+    else if (consumeReserved(">")) {
       // swap lhs and rhs
       node = newNodeBinOp(NodeKind.lt, arith(), node);
     }
-    else if (consume(">=")) {
+    else if (consumeReserved(">=")) {
       // swap lhs and rhs
       node = newNodeBinOp(NodeKind.leq, arith(), node);
     }
@@ -315,10 +323,10 @@ Node* relational() {
 Node* equality() {
   Node* node = relational();
   for (;;) {
-    if (consume("==")) {
+    if (consumeReserved("==")) {
       node = newNodeBinOp(NodeKind.eq, node, relational());
     }
-    else if (consume("!=")) {
+    else if (consumeReserved("!=")) {
       node = newNodeBinOp(NodeKind.neq, node, relational());
     }
     else {
@@ -332,19 +340,19 @@ Node* equality() {
 Node* logic() {
   Node* node = equality();
   for (;;) {
-    if (consume("&&")) {
+    if (consumeReserved("&&")) {
       node = newNodeBinOp(NodeKind.and2, node, logic());
     }
-    else if (consume("||")) {
+    else if (consumeReserved("||")) {
       node = newNodeBinOp(NodeKind.or2, node, logic());
     }
-    else if (consume("&")) {
+    else if (consumeReserved("&")) {
       node = newNodeBinOp(NodeKind.and, node, logic());
     }
-    else if (consume("|")) {
+    else if (consumeReserved("|")) {
       node = newNodeBinOp(NodeKind.or, node, logic());
     }
-    else if (consume("^")) {
+    else if (consumeReserved("^")) {
       node = newNodeBinOp(NodeKind.xor, node, logic());
     }
     else {
@@ -357,7 +365,7 @@ Node* logic() {
 /// assign := logic ("=" assign)?
 Node* assign() {
   Node* node = logic();
-  if (consume("=")) {
+  if (consumeReserved("=")) {
     // assert(node.kind == NodeKind.localVar);
     node = newNodeBinOp(NodeKind.assign, node, assign());
   }
@@ -373,9 +381,9 @@ Node* expr() {
 Type* consumeType() {
   if (consumeKind(TokenKind.int_)) {
     Type* ret = newType(TypeKind.int_);
-    while (consume("*")) {
+    while (consumeReserved("*")) {
       Type* t = newType(TypeKind.ptr);
-      t.ptrof = ret;
+      t.ptrOf = ret;
       ret = t;
     }
     return ret;
@@ -387,8 +395,8 @@ Type* consumeType() {
 /// params = (type identifier ",")* type identifier
 void setParams(Node* node) {
   Node* iter = node;
-  for (long i = 0; !consume(")"); ++i) {
-    if (i != 0) expect(",");
+  for (long i = 0; !consumeReserved(")"); ++i) {
+    if (i != 0) expectReserved(",");
     Type* type = consumeType();
     if (type == null) {
       printErrorCurrent();
@@ -397,12 +405,13 @@ void setParams(Node* node) {
     }
 
     // define arg var
-    const(Token)* atoken = consumeIdentifier();
     Node* anode = newNode(NodeKind.defVar);
-    LocalVar* var = defineVar(atoken);
-    var.type = type;
+    const(Token)* atoken = consumeIdentifier();
+    if (atoken) {
+      LocalVar* var = defineVar(atoken, type);
+      anode.var = var;
+    }
     anode.type = type;
-    anode.var = var;
     iter.args = anode;
     iter = iter.args;
     ++node.argsLength;
@@ -416,14 +425,33 @@ void setParams(Node* node) {
 ///           | "{" statement* "}"
 ///           | type identifier ";"
 ///           | type identifier "(" params ")" "{" statement* "}"
+///           | type "[" integer "]" identifier ";"
 Node* statement() {
   // TODO support non-int def, e.g., int*
   Type* type = consumeType();
   if (type) {
+    // array def
+    if (consumeReserved("[")) {
+      long arrayLength = expectInteger();
+      expectReserved("]");
+      const(Token)* t = consumeIdentifier();
+      assert(t, "identifier expected");
+
+      Node* node = newNode(NodeKind.defVar);
+      assert(findLocalVar(t) == null, "variable already defined.");
+      Type* atype = newType(TypeKind.array);
+      atype.ptrOf = type;
+      atype.arrayLength = arrayLength;
+      node.type = atype;
+      node.var = defineArray(t, atype);
+      expectReserved(";");
+      return node;
+    }
+
     const(Token)* t = consumeIdentifier();
     assert(t, "identifier expected");
     // func def
-    if (consume("(")) {
+    if (consumeReserved("(")) {
       Node* node = newNode(NodeKind.func);
       node.returnType = type;
       setParams(node);
@@ -438,18 +466,16 @@ Node* statement() {
     // variable def
     Node* node = newNode(NodeKind.defVar);
     assert(findLocalVar(t) == null, "variable already defined.");
-    LocalVar* var = defineVar(t);
-    var.type = type;
     node.type = type;
-    node.var = var;
-    expect(";");
+    node.var = defineVar(t, type);
+    expectReserved(";");
     return node;
   }
   // "{" statement* "}"
-  if (consume("{")) {
+  if (consumeReserved("{")) {
     Node* node = newNode(NodeKind.compound);
     Node* cmpd = node;
-    while (!consume("}")) {
+    while (!consumeReserved("}")) {
       cmpd.next = statement();
       cmpd = cmpd.next;
     }
@@ -458,9 +484,9 @@ Node* statement() {
   // "if" "(" expr ")" statement ("else" statement)?
   if (consumeKind(TokenKind.if_)) {
     Node* node = newNode(NodeKind.if_);
-    expect("(");
+    expectReserved("(");
     node.condExpr = expr();
-    expect(")");
+    expectReserved(")");
     node.ifStatement = statement();
     if (consumeKind(TokenKind.else_)) {
       node.elseStatement = statement();
@@ -470,18 +496,18 @@ Node* statement() {
   // "for" "(" expr? ";" expr? ";" expr? ")" statement
   if (consumeKind(TokenKind.for_)) {
     Node* node = newNode(NodeKind.for_);
-    expect("(");
-    if (!consume(";")) {
+    expectReserved("(");
+    if (!consumeReserved(";")) {
       node.forInit = expr();
-      expect(";");
+      expectReserved(";");
     }
-    if (!consume(";")) {
+    if (!consumeReserved(";")) {
       node.forCond = expr();
-      expect(";");
+      expectReserved(";");
     }
-    if (!consume(")")) {
+    if (!consumeReserved(")")) {
       node.forUpdate = expr();
-      expect(")");
+      expectReserved(")");
     }
     node.forBlock = statement();
     return node;
@@ -489,20 +515,20 @@ Node* statement() {
   // "while" "(" expr ")" statement
   if (consumeKind(TokenKind.while_)) {
     Node* node = newNode(NodeKind.for_);
-    expect("(");
+    expectReserved("(");
     node.forCond = expr();
-    expect(")");
+    expectReserved(")");
     node.forBlock = statement();
     return node;
   }
   // "return"? expr ";"
   if (consumeKind(TokenKind.return_)) {
     Node* node = newNodeBinOp(NodeKind.return_, expr(), null);
-    expect(";");
+    expectReserved(";");
     return node;
   }
   Node* node = expr();
-  if (node.kind != NodeKind.func) expect(";");
+  if (node.kind != NodeKind.func) expectReserved(";");
   return node;
 }
 
@@ -578,6 +604,7 @@ unittest
 
 unittest
 {
+  import std.string;
   import tdc.tokenize;
 
   const(char)* s = "int A; int* B; for (A = 0;A<10;A=A+1) {1;2;3;}";
@@ -585,16 +612,14 @@ unittest
 
   Node* declInt = statement();
   assert(declInt.kind == NodeKind.defVar);
-  assert(declInt.var.name[0..1] == "A");
-  assert(declInt.var.length == 1);
+  assert(declInt.var.name.fromStringz == "A");
   assert(declInt.type.kind == TypeKind.int_);
 
   Node* declIntPtr = statement();
   assert(declIntPtr.kind == NodeKind.defVar);
-  assert(declIntPtr.var.name[0..1] == "B");
-  assert(declIntPtr.var.length == 1);
+  assert(declIntPtr.var.name.fromStringz == "B");
   assert(declIntPtr.type.kind == TypeKind.ptr);
-  assert(declIntPtr.type.ptrof.kind == TypeKind.int_);
+  assert(declIntPtr.type.ptrOf.kind == TypeKind.int_);
 
   Node* stmt = statement();
   assert(stmt.kind == NodeKind.for_);
@@ -618,6 +643,7 @@ unittest
 
 unittest
 {
+  import std.string : fromStringz;
   import tdc.tokenize;
 
   const(char)* s = "foo();";
@@ -625,11 +651,12 @@ unittest
 
   Node* stmt = expr();
   assert(stmt.kind == NodeKind.call);
-  assert(stmt.name[0..3] == "foo");
+  assert(stmt.name.fromStringz == "foo");
 }
 
 unittest
 {
+  import std.string : fromStringz;
   import tdc.tokenize;
 
   const(char)* s = "foo(123);";
@@ -637,12 +664,13 @@ unittest
 
   Node* stmt = expr();
   assert(stmt.kind == NodeKind.call);
-  assert(stmt.name[0..3] == "foo");
+  assert(stmt.name.fromStringz == "foo");
   assert(stmt.args.integer == 123);
 }
 
 unittest
 {
+  import std.string : fromStringz;
   import tdc.tokenize;
 
   const(char)* s = "int foo(int a, int* b) { return a; } int main() {}";
@@ -650,13 +678,13 @@ unittest
 
   Node* stmt = func();
   assert(stmt.kind == NodeKind.func);
-  assert(stmt.name[0..3] == "foo");
+  assert(stmt.name.fromStringz == "foo");
   assert(stmt.returnType.kind == TypeKind.int_);
-  assert(stmt.args.var.name[0..1] == "a");
+  assert(stmt.args.var.name.fromStringz == "a");
   assert(stmt.args.type.kind == TypeKind.int_);
-  assert(stmt.args.args.var.name[0..1] == "b");
+  assert(stmt.args.args.var.name.fromStringz == "b");
   assert(stmt.args.args.type.kind == TypeKind.ptr);
-  assert(stmt.args.args.type.ptrof.kind == TypeKind.int_);
+  assert(stmt.args.args.type.ptrOf.kind == TypeKind.int_);
 
   Token t;
   t.kind = TokenKind.identifier;
@@ -669,12 +697,13 @@ unittest
 
   Node* main = func();
   assert(main.kind == NodeKind.func);
-  assert(main.name[0..4] == "main");
+  assert(main.name.fromStringz == "main");
   assert(main.argsLength == 0);
 }
 
 unittest
 {
+  import std.string : fromStringz;
   import tdc.tokenize;
 
   const(char)* s = "int** foo;";
@@ -682,10 +711,10 @@ unittest
 
   Node* stmt = statement();
   assert(stmt.kind == NodeKind.defVar);
-  assert(stmt.var.name[0..3] == "foo");
+  assert(stmt.var.name.fromStringz == "foo");
   assert(stmt.type.kind == TypeKind.ptr);
-  assert(stmt.type.ptrof.kind == TypeKind.ptr);
-  assert(stmt.type.ptrof.ptrof.kind == TypeKind.int_);
+  assert(stmt.type.ptrOf.kind == TypeKind.ptr);
+  assert(stmt.type.ptrOf.ptrOf.kind == TypeKind.int_);
 }
 
 unittest
@@ -723,4 +752,18 @@ unittest
   Node* stmt = expr();
   assert(stmt.kind == NodeKind.integer);
   assert(stmt.integer == (int*).sizeof);
+}
+
+unittest
+{
+  import std.string;
+  import tdc.tokenize;
+
+  const(char)* s = "int[2] arr;";
+  tokenize(s);
+  Node* stmt = statement();
+  assert(stmt.type.kind == TypeKind.array);
+  assert(stmt.type.ptrOf.kind == TypeKind.int_);
+  assert(stmt.type.arrayLength == 2);
+  assert(stmt.var.name.fromStringz == "arr");
 }

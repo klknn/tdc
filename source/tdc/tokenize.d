@@ -74,7 +74,7 @@ unittest {
 }
 
 /// Updates `currentToken` and returns true if op is valid else false.
-bool consume(const(char)* s) {
+bool consumeReserved(const(char)* s) {
   if (!match(s)) {
     return false;
   }
@@ -100,7 +100,7 @@ void expectKind(TokenKind k) {
 }
 
 /// Check expected string is found.
-void expect(const(char)* s) {
+void expectReserved(const(char)* s) {
   if (match(s)) {
     currentToken = currentToken.next;
     return;
@@ -219,6 +219,7 @@ void tokenize(const(char)* p) {
         *p == '<' || *p == '>' || *p == '!' ||
         *p == '&' || *p == '|' || *p == '^' ||
         *p == '(' || *p == ')' || *p == '{' || *p == '}' ||
+        *p == '[' || *p == ']' ||
         *p == ',' || *p == '.' || *p == ';' || *p == '=') {
       cur = newToken(TokenKind.reserved, cur, p, 1);
       ++p;
@@ -265,9 +266,9 @@ unittest {
   const(char)* s = "(123)";
   tokenize(s);
 
-  assert(consume("("));
+  assert(consumeReserved("("));
   assert(expectInteger() == 123);
-  assert(consume(")"));
+  assert(consumeReserved(")"));
   assert(isEof());
 }
 
@@ -275,14 +276,14 @@ unittest {
   const(char)* s = "if (1) {} else {} ";
   tokenize(s);
   assert(consumeKind(TokenKind.if_));
-  assert(consume("("));
+  assert(consumeReserved("("));
   assert(expectInteger() == 1);
-  assert(consume(")"));
-  assert(consume("{"));
-  assert(consume("}"));
+  assert(consumeReserved(")"));
+  assert(consumeReserved("{"));
+  assert(consumeReserved("}"));
   assert(consumeKind(TokenKind.else_));
-  assert(consume("{"));
-  assert(consume("}"));
+  assert(consumeReserved("{"));
+  assert(consumeReserved("}"));
   assert(isEof());
 }
 
@@ -290,11 +291,11 @@ unittest {
   const(char)* s = "while (1) {} ";
   tokenize(s);
   assert(consumeKind(TokenKind.while_));
-  assert(consume("("));
+  assert(consumeReserved("("));
   assert(expectInteger() == 1);
-  assert(consume(")"));
-  assert(consume("{"));
-  assert(consume("}"));
+  assert(consumeReserved(")"));
+  assert(consumeReserved("{"));
+  assert(consumeReserved("}"));
   assert(isEof());
 }
 
@@ -302,12 +303,12 @@ unittest {
   const(char)* s = "for (;;) {} ";
   tokenize(s);
   assert(consumeKind(TokenKind.for_));
-  assert(consume("("));
-  assert(consume(";"));
-  assert(consume(";"));
-  assert(consume(")"));
-  assert(consume("{"));
-  assert(consume("}"));
+  assert(consumeReserved("("));
+  assert(consumeReserved(";"));
+  assert(consumeReserved(";"));
+  assert(consumeReserved(")"));
+  assert(consumeReserved("{"));
+  assert(consumeReserved("}"));
   assert(isEof());
 }
 
@@ -319,7 +320,7 @@ unittest {
   auto t = consumeIdentifier();
   assert(t);
   assert(t.str[0 .. t.length] == "foo");
-  assert(consume("+"));
+  assert(consumeReserved("+"));
   auto bar = consumeIdentifier();
   assert(bar.str[0..bar.length] == "bar");
   assert(isEof());
@@ -333,6 +334,6 @@ unittest {
   auto t = consumeIdentifier();
   assert(t);
   assert(t.str[0..t.length] == "foo");
-  expect(";");
+  expectReserved(";");
   assert(isEof());
 }
