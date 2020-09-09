@@ -13,7 +13,7 @@ module tdc.codegen;
 
 import tdc.parse : Node, NodeKind;
 import tdc.stdc.stdio : printf;
-import tdc.type : TypeKind;
+import tdc.type : sizeOf, TypeKind;
 
 long numIfBlock;
 long numForBlock;
@@ -22,7 +22,7 @@ long numAnd;
 
 /// Put the local variable address (offset from top) in rax
 void raxLocalVarAddress(const(Node)* node) {
-  assert(node.kind == NodeKind.localVar);
+  // assert(node.kind == NodeKind.localVar);
   // copy a base pointer (rbp, top of function frame) to rax
   printf("  mov rax, rbp\n");
   // move rax to offset from top
@@ -60,12 +60,17 @@ void genX64(const(Node)* node) {
   if (node == null) return;
 
   NodeKind k = node.kind;
+  if (k == NodeKind.defArray) {
+    // raxLocalVarAddress(node);
+    // printf("  mov [rax], rax\n");
+    return;
+  }
   if (k == NodeKind.defVar) {
-    // TOOD: calc offset here?
     return;
   }
   if (k == NodeKind.address) {
-    assert(node.unary.kind == NodeKind.localVar, "TODO support non-variable address.");
+    assert(node.unary.kind == NodeKind.localVar,
+           "TODO support non-variable address.");
     raxLocalVarAddress(node.unary);
     printf("  push rax\n");
     return;
@@ -85,8 +90,8 @@ void genX64(const(Node)* node) {
 
     printf("  push rbp\n");
     printf("  mov rbp, rsp\n");
-    printf("  // push args\n");
     if (node.argsLength > 0) {
+      printf("  // push args\n");
       printf("  mov QWORD PTR -8[rbp], rdi\n");
     }
     if (node.argsLength > 1) {
@@ -109,7 +114,10 @@ void genX64(const(Node)* node) {
       printf("  mov QWORD PTR -%ld[rbp], rax\n", 56 + n * long.sizeof);
     }
     // alloc local variables
-    printf("  sub rsp, %d\n", node.localsLength * long.sizeof);
+    if (node.locals) {
+      printf("  // alloc locals\n");
+      printf("  sub rsp, %d\n", node.locals.offset);
+    }
     for (const(Node)* bd = node.funcBody.next;  bd; bd = bd.next) {
       printf("  // gen body\n");
       genX64(bd);
@@ -221,7 +229,7 @@ void genX64(const(Node)* node) {
       printf("  push rax\n");
     }
     else if (node.lhs.kind == NodeKind.deref) {
-      genX64(node.unary);
+      genX64(node.lhs.unary);
     }
     else {
       assert(false, "unsupported NodeKind for assign.");

@@ -21,6 +21,11 @@ assert() {
   fi
 }
 
+# test array
+assert 3 "int main() { int[2] a; int* b; b = &a; *b = 3;  return a; }"
+assert 1 "int main() { int[2] a; int* b; b = &a; *(b + 1) = 1;  return *(b + 1); }"
+# assert 1 "int main() { int[2] a; a = &a; *a = 1;  return *a; }"
+
 # test sizeof
 assert 4 "int main() { return 1.sizeof; }"
 
@@ -86,6 +91,16 @@ int main() {
   return *(q - 1);
 }
 "
+
+assert 2 "
+int main() {
+  int* p;
+  ext_alloc4(&p, 1, 2, 3, 4);
+  *(p + 0) = 2;
+  return *(p + 0);
+}
+"
+
 
 # TODO ptr (+|-) ptr
 # assert 3 "
